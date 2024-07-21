@@ -33,7 +33,7 @@ class LineWorld(Environment):
         self.length = length
         self.state = 0
         self.actions = [0, 1]
-        self. rewards = [-1, 0]
+        self.rewards = [-1, 0]
         self.goal_position = self.length - 1
         self.goal_color = (0, 255, 0)
         self.agent_color = (255, 0, 0)
@@ -134,37 +134,37 @@ class GridWorld(Environment):
         for s in range(self.length):
             x, y = self._state_to_coordinate(s)
             for a in range(len(self.actions)):
-                if a == 0:
-                    new_x, new_y = x, y - 1
-                elif a == 1:
-                    new_x, new_y = x, y + 1
-                elif a == 2:
-                    new_x, new_y = x - 1, y
-                elif a == 3:
-                    new_x, new_y = x + 1, y
-                
-                
-                for r in range(len(self.rewards)):
-                    if self._is_valid_state(new_x, new_y):
-                        s_prime = self._coordinate_to_state(new_x, new_y)
-                        if s_prime == self.goal_position:
-                            p[s, a, s_prime, r] = 1.0
-                        else:
-                            p[s, a, s_prime, r] = 1.0
-                    else:
-                        p[s, a, s, r] = 1.0
 
+                if a == 0:
+                    new_x, new_y = x, y + 1
+                elif a == 1:
+                    new_x, new_y = x, y - 1
+                elif a == 2:
+                    new_x, new_y = x + 1, y
+                elif a == 3:
+                    new_x, new_y = x - 1, y
+
+                if self._is_valid_state(new_x, new_y):
+                    s_prime = self._coordinate_to_state(new_x, new_y)
+                else:
+                    s_prime = s
+
+                if s_prime == self.goal_position:
+                    p[s, a, s_prime, 1] = 1.0
+                else:
+                    p[s, a, s_prime, 0] = 1.0
         return p
 
     def _is_valid_state(self, x, y):
         return 0 <= x < self.width and 0 <= y < self.height
 
     def _state_to_coordinate(self, state):
+        # x, y = divmod(state, self.width)
         x, y = state % self.width, state // self.width
         return x, y
 
     def _coordinate_to_state(self, x, y):
-        return x * self.width + y
+        return y * self.width + x
 
     def reset(self):
         self.state = 0

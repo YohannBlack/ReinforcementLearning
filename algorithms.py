@@ -1,73 +1,102 @@
 import numpy as np
 from tqdm import tqdm
+from collections import defaultdict
 
 
-def value_iteration(env, gamma=0.9, theta=0.0001):
+def value_iteration(env, GAMMA=0.999, THETA=0.0001):
     V = np.zeros(env.length)
-    policy = np.zeros((env.length, len(env.actions)))
+    pi = np.ones((env.length, len(env.actions))) / len(env.actions)
+    episode = 1
 
     while True:
-        delta = 0
+        delta = 0.
         for s in range(env.length):
-            v = V[s]
-            new_values = np.zeros(len(env.actions))
-            for a in env.actions:
+            old_v = V[s]
+            best_value = float("-inf")
+            for a in range(len(env.actions)):
+                total = 0.
                 for s_prime in range(env.length):
-                    prob = env.prob_matrix[s, a, s_prime]
-                    reward = env.goal_reward if s_prime == env.goal_position else env.step_reward
-                    new_values[a] += prob * (reward + gamma * V[s_prime])
-            V[s] = np.max(new_values)
-            policy[s] = np.eye(len(env.actions))[np.argmax(new_values)]
-            delta = max(delta, np.abs(v - V[s]))
-        if delta < theta:
+                    for r in range(len(env.rewards)):
+                        total += env.prob_matrix[s, a, s_prime, r] * \
+                            (env.rewards[r] + GAMMA * V[s_prime])
+                if total > best_value:
+                    best_value = total
+            V[s] = best_value
+            delta = max(delta, abs(V[s] - old_v))
+        if delta < THETA:
             break
-    return policy, V
+        episode += 1
 
-
-def policy_iteration(env, gamma=0.9, theta=0.0001):
-    V = np.zeros(env.length)
-    policy = np.full((env.length, len(env.actions)), 1/len(env.actions))
-
-    def one_step_lookahead(s, V):
-        action_values = np.zeros(len(env.actions))
+    for s in range(env.length):
+        best_value = float("-inf")
+        best_action = None
         for a in range(len(env.actions)):
+            total = 0.
             for s_prime in range(env.length):
                 for r in range(len(env.rewards)):
-                    prob = env.prob_matrix[s, a, s_prime, r]
-                    reward = env.rewards[r]
-                    action_values[a] += prob * (reward + gamma * V[s_prime])
-        return action_values
+                    total += env.prob_matrix[s, a, s_prime, r] * \
+                        (env.rewards[r] + GAMMA * V[s_prime])
+            if total > best_value:
+                best_value = total
+                best_action = a
+        pi[s] = np.eye(len(env.actions))[best_action]
 
-    is_policy_stable = False
+    print("Value Iteration episodes = ", episode)
+    return pi, V, episode
 
-    while not is_policy_stable:
-        # Policy Evaluation
-        while True:
-            delta = 0
-            for s in range(env.length):
-                v = V[s]
-                V[s] = sum(policy[s, a] * sum(env.prob_matrix[s, a, s_prime, r] * (env.rewards[r] + gamma * V[s_prime])
-                    for s_prime in range(env.length)
-                    for r in range(len(env.rewards))
-                ) for a in range(len(env.actions)))
-                delta = max(delta, abs(v - V[s]))
-            if delta < theta:
-                break
 
-        is_policy_stable = True
+def policy_evaluation(env, pi, GAMMA=0.999, THETA=0.0001):
+    V = np.zeros(env.length)
+    episode = 1
+
+    while True:
+        delta = 0.0
         for s in range(env.length):
-            old_action = np.argmax(policy[s])
-            action_values = one_step_lookahead(s, V)
-            best_action = np.argmax(action_values)
+            old_v = V[s]
+            new_v = 0.0
+            for a in range(len(env.actions)):
+                total_inter = 0.0
+                for s_p in range(env.length):
+                    for r in range(len(env.rewards)):
+                        total_inter += env.prob_matrix[s, a, s_p,
+                                                       r] * (env.rewards[r] + GAMMA * V[s_p])
+                new_v += pi[s, a] * total_inter
+            V[s] = new_v
+            delta = max(delta, abs(V[s] - old_v))
+        if delta < THETA:
+            return V, episode
+        episode += 1
 
-            new_policy = np.zeros(len(env.actions))
-            new_policy[best_action] = 1.0
-            policy[s] = new_policy
 
-            if old_action != best_action:
-                is_policy_stable = False
+def policy_iteration(env, GAMMA=0.999, THETA=0.0001):
+    episode = 1
+    pi = np.ones((env.length, len(env.actions))) / len(env.actions)
+    V = np.zeros(env.length)
 
-    return policy, V
+    while True:
+        # Policy Evaluation
+        V, _ = policy_evaluation(env, pi, GAMMA, THETA)
+
+        # Policy Improvement
+        policy_stable = True
+        for s in range(env.length):
+            old_a = np.argmax(pi[s])
+            action_values = np.zeros(len(env.actions))
+            for a in range(len(env.actions)):
+                for s_p in range(env.length):
+                    for r in range(len(env.rewards)):
+                        action_values[a] += env.prob_matrix[s, a,
+                                                            s_p, r] * (env.rewards[r] + GAMMA * V[s_p])
+            best_a = np.argmax(action_values)
+            pi[s] = np.eye(len(env.actions))[best_a]
+            if old_a != best_a:
+                policy_stable = False
+        if policy_stable:
+            break
+        episode += 1
+
+    print("Policy Iteration episodes = ", episode)
+    return pi, V, episode
 
 
 def naive_monte_carlo_with_exploring_starts(env, gamma=0.999, nb_iter=10000, max_steps=10):
@@ -122,6 +151,38 @@ def naive_monte_carlo_with_exploring_starts(env, gamma=0.999, nb_iter=10000, max
 
                 Pi[s] = best_a
     return Pi
+
+
+def monte_carlo_on_policy(env, gamma=0.999, nb_iter=10000, epsilon=0.1, max_steps=10):
+    Q = defaultdict(lambda: np.zeros(len(env.available_actions())))
+    Returns = defaultdict(list)
+
+    def epsilon_soft_policy(s):
+        A_star = np.argmax(Q[s])
+        policy = np.ones(len(env.available_actions())) * \
+            (epsilon / len(env.available_actions()))
+        policy[A_star] += (1 - epsilon)
+        return policy
+
+    def choose_action(policy):
+        return np.random.choice(np.arange(len(policy)), p=policy)
+
+    def generate_episode(policy):
+        episode = []
+        state = env.from_random_state().state_id()
+        steps_count = 0
+        while not env.is_done() and steps_count < max_steps:
+            action = choose_action(policy[state])
+            s_prime, reward, done = env.step(action)
+            episode.append((state, action, reward))
+            state = s_prime
+            steps_count += 1
+        return episode
+
+    for _ in tqdm(range(nb_iter)):
+        episode = generate_episode(epsilon_soft_policy)
+
+
 
 
 
