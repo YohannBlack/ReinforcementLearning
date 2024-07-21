@@ -3,15 +3,15 @@ import numpy as np
 import pprint
 
 from environments import LineWorld, GridWorld
-from algorithms import value_iteration, policy_iteration, monte_carlo_with_exploring_start
+from algorithms import value_iteration, policy_iteration, monte_carlo_with_exploring_start, monte_carlo_on_policy
 
 
 def line_world():
     env = LineWorld(length=10)
     # policy, V, episode = value_iteration(env)
     # policy, V, episode = policy_iteration(env)
-    policy, Q = monte_carlo_with_exploring_start(env, nb_iter=10000, GAMMA=0.7)
-    # _, policy = monte_carlo_on_policy(env, nb_iter=10000)
+    # policy, Q = monte_carlo_with_exploring_start(env, nb_iter=10000, GAMMA=0.7)
+    policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
 
     if isinstance(policy, dict):
         print("Optimal policy: \n")
@@ -47,9 +47,9 @@ def grid_world():
     env = GridWorld(width=5, height=5)
     # policy, V, episode = value_iteration(env, GAMMA=0.3)
     # policy, V, episode = policy_iteration(env, nb_iter=50000, GAMMA=0.3)
-    policy, Q = monte_carlo_with_exploring_start(
-        env, nb_iter=10000, max_step=100, GAMMA=0.3)
-    # _, policy = monte_carlo_on_policy(env, nb_iter=100)
+    # policy, Q = monte_carlo_with_exploring_start(
+    #     env, nb_iter=10000, max_step=100, GAMMA=0.3)
+    policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
 
     if isinstance(policy, dict):
         print("Optimal policy: \n")
@@ -83,5 +83,5 @@ def grid_world():
 
 
 if __name__ == "__main__":
-    line_world()
+    # line_world()
     grid_world()

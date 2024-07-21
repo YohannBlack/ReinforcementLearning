@@ -157,6 +157,62 @@ def monte_carlo_with_exploring_start(env: Environment, nb_iter: int = 10000, GAM
     return pi, Q
 
 
+def monte_carlo_on_policy(
+        env: Environment,
+        nb_iter: int = 10000,
+        GAMMA: float = 0.999,
+        max_step: int = 100,
+        epsilon: float = 0.1
+) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
+
+    Q: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [0.0] * len(env.available_actions()))
+    pi: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [1.0 / len(env.available_actions())] * len(env.available_actions()))
+    Returns: Dict[Tuple, List[float]] = defaultdict(list)
+
+    for it in tqdm(range(nb_iter)):
+        env = env.from_random_state()
+        trajectory = []
+        steps_count = 0
+
+        while not env.is_done() and steps_count < max_step:
+            s = env.state_id()
+            aa = env.available_actions()
+            nb_actions = len(aa)
+
+            if s not in pi:
+                pi[s] = [1.0 / nb_actions] * nb_actions
+
+            if np.random.rand() < epsilon:
+                a = np.random.choice(aa)
+            else:
+                a = np.argmax(pi[s])
+
+            prev_score = env.score()
+            env.step(a)
+            r = env.score() - prev_score
+
+            trajectory.append((s, a, r, aa))
+            steps_count += 1
+
+        G = 0
+        for t, (s, a, r, aa) in reversed(list(enumerate(trajectory))):
+            G = GAMMA * G + r
+
+            if all(triplet[0] != s or triplet[1] != a for triplet in trajectory[:t]):
+                Returns[(s, a)].append(G)
+                Q[s][a] = np.mean(Returns[(s, a)])
+
+                nb_actions = len(aa)
+                best_a = np.argmax(Q[s])
+                pi[s] = [epsilon / nb_actions +
+                         (1 - epsilon) * (1. if i == best_a else 0.) for i in range(nb_actions)]
+
+    return pi, Q
+
+
+
 
 
 
