@@ -212,6 +212,66 @@ def monte_carlo_on_policy(
     return pi, Q
 
 
+def monte_carlo_off_policy(
+    env,
+    gamma: float = 0.999,
+    nb_iter: int = 10000,
+    max_steps: int = 10,
+    epsilon: float = 0.1
+) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
+    Q: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [0.0] * len(env.available_actions()))
+    pi: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [1.0 / len(env.available_actions())] * len(env.available_actions()))
+    C: Dict[Tuple, float] = defaultdict(float)
+
+    for s in Q:
+        best_action = np.argmax(Q[s])
+        pi[s] = [1.0 if i == best_action else 0.0 for i in range(len(Q[s]))]
+
+    for _ in tqdm(range(nb_iter)):
+        env = env.from_random_state()
+        trajectory = []
+        steps_count = 0
+
+        while not env.is_done() and steps_count < max_steps:
+            s = env.state_id()
+            aa = env.available_actions()
+            n_actions = len(aa)
+
+            if np.random.rand() < epsilon:
+                a = np.random.choice(aa)
+            else:
+                a = np.argmax(pi[s])
+
+            prev_score = env.score()
+            env.step(a)
+            r = env.score() - prev_score
+
+            trajectory.append((s, a, r, aa))
+            steps_count += 1
+
+        G = 0
+        W = 1
+
+        # Loop for each step of the episode in reverse order
+        for t in reversed(range(len(trajectory))):
+            s, a, r, aa = trajectory[t]
+            G = gamma * G + r
+
+            C[(s, a)] += W
+            Q[s][a] += (W / C[(s, a)]) * (G - Q[s][a])
+
+            best_action = np.argmax(Q[s])
+            pi[s] = [1.0 if i == best_action else 0.0 for i in range(len(aa))]
+
+            if a != best_action:
+                break
+
+            W *= 1 / (epsilon / n_actions + (1 - epsilon)
+                      * (1 if a == best_action else 0))
+
+    return pi, Q
 
 
 
