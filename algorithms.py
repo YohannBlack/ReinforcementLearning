@@ -1,9 +1,12 @@
+import random
 import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
+from typing import Dict, List, Tuple
+from environments import Environment
 
 
-def value_iteration(env, GAMMA=0.999, THETA=0.0001):
+def value_iteration(env: Environment, GAMMA: float = 0.999, THETA: float = 0.0001) -> Tuple[np.ndarray, np.ndarray, int]:
     V = np.zeros(env.length)
     pi = np.ones((env.length, len(env.actions))) / len(env.actions)
     episode = 1
@@ -45,7 +48,7 @@ def value_iteration(env, GAMMA=0.999, THETA=0.0001):
     return pi, V, episode
 
 
-def policy_evaluation(env, pi, GAMMA=0.999, THETA=0.0001):
+def policy_evaluation(env: Environment, pi: np.ndarray, GAMMA: float = 0.999, THETA: float = 0.0001) -> Tuple[np.ndarray, int]:
     V = np.zeros(env.length)
     episode = 1
 
@@ -68,7 +71,7 @@ def policy_evaluation(env, pi, GAMMA=0.999, THETA=0.0001):
         episode += 1
 
 
-def policy_iteration(env, GAMMA=0.999, THETA=0.0001):
+def policy_iteration(env: Environment, GAMMA: float = 0.999, THETA: float = 0.0001) -> Tuple[np.ndarray, np.ndarray, int]:
     episode = 1
     pi = np.ones((env.length, len(env.actions))) / len(env.actions)
     V = np.zeros(env.length)
@@ -99,88 +102,61 @@ def policy_iteration(env, GAMMA=0.999, THETA=0.0001):
     return pi, V, episode
 
 
-def naive_monte_carlo_with_exploring_starts(env, gamma=0.999, nb_iter=10000, max_steps=10):
-    Pi = {}
-    Q = {}
-    Returns = {}
+def monte_carlo_with_exploring_start(env: Environment, nb_iter: int = 10000, GAMMA: float = 0.999, max_step: int = 10) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
+    Q: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [0.0] * len(env.available_actions()))
+    pi: Dict[Tuple, List[float]] = defaultdict(
+        lambda: [1.0 / len(env.available_actions())] * len(env.available_actions()))
+    Returns: Dict[Tuple, List[float]] = defaultdict(list)
 
     for it in tqdm(range(nb_iter)):
         env = env.from_random_state()
-
         is_first_action = True
         trajectory = []
         steps_count = 0
-        while not env.is_done() and steps_count < max_steps:
-            s = env.state_id()
-            A = env.available_actions()
 
-            if s not in Pi:
-                Pi[s] = np.random.choice(A)
+        while not env.is_done() and steps_count < max_step:
+            s = env.state_id()
+            aa = env.available_actions()
+
+            if s not in pi:
+                pi[s] = [1.0 / len(aa)] * len(aa)
 
             if is_first_action:
-                a = np.random.choice(A)
+                a = np.random.choice(aa)
                 is_first_action = False
             else:
-                a = Pi[s]
+                a = np.argmax(pi[s])
 
             prev_score = env.score()
             env.step(a)
             r = env.score() - prev_score
 
-            trajectory.append((s, a, r, A))
+            trajectory.append((s, a, r, aa))
             steps_count += 1
 
         G = 0
-        for (t, (s, a, r, A)) in reversed(list(enumerate(trajectory))):
-            G = gamma * G + r
+        for t, (s, a, r, aa) in reversed(list(enumerate(trajectory))):
+            G = GAMMA * G + r
 
-            if all(map(lambda triplet: triplet[0] != s or triplet[1] != a, trajectory[:t])):
-                if (s, a) not in Returns:
-                    Returns[(s, a)] = []
+            if all(triplet[0] != s or triplet[1] != a for triplet in trajectory[:t]):
                 Returns[(s, a)].append(G)
-                Q[(s, a)] = np.mean(Returns[(s, a)])
+                Q[s][a] = np.mean(Returns[(s, a)])
 
                 best_a = None
-                best_a_score = -np.inf
-                for a in A:
+                best_a_score = -float('inf')
+                for a in aa:
                     if (s, a) not in Q:
-                        Q[(s, a)] = np.random.random()
-                    if Q[(s, a)] > best_a_score:
+                        Q[s][a] = np.random.random()
+                    if Q[s][a] > best_a_score:
                         best_a = a
-                        best_a_score = Q[(s, a)]
+                        best_a_score = Q[s][a]
 
-                Pi[s] = best_a
-    return Pi
+                pi[s] = [1.0 if i == best_a else 0.0 for i in range(len(aa))]
+
+    return pi, Q
 
 
-def monte_carlo_on_policy(env, gamma=0.999, nb_iter=10000, epsilon=0.1, max_steps=10):
-    Q = defaultdict(lambda: np.zeros(len(env.available_actions())))
-    Returns = defaultdict(list)
-
-    def epsilon_soft_policy(s):
-        A_star = np.argmax(Q[s])
-        policy = np.ones(len(env.available_actions())) * \
-            (epsilon / len(env.available_actions()))
-        policy[A_star] += (1 - epsilon)
-        return policy
-
-    def choose_action(policy):
-        return np.random.choice(np.arange(len(policy)), p=policy)
-
-    def generate_episode(policy):
-        episode = []
-        state = env.from_random_state().state_id()
-        steps_count = 0
-        while not env.is_done() and steps_count < max_steps:
-            action = choose_action(policy[state])
-            s_prime, reward, done = env.step(action)
-            episode.append((state, action, reward))
-            state = s_prime
-            steps_count += 1
-        return episode
-
-    for _ in tqdm(range(nb_iter)):
-        episode = generate_episode(epsilon_soft_policy)
 
 
 

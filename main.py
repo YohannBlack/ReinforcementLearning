@@ -1,19 +1,23 @@
 import pygame
 import numpy as np
+import pprint
 
 from environments import LineWorld, GridWorld
-from algorithms import value_iteration, policy_iteration, naive_monte_carlo_with_exploring_starts, monte_carlo_on_policy
+from algorithms import value_iteration, policy_iteration, monte_carlo_with_exploring_start
 
 
 def line_world():
-    env = LineWorld(length=5)
+    env = LineWorld(length=10)
     # policy, V, episode = value_iteration(env)
-    policy, V, episode = policy_iteration(env)
-    # policy = naive_monte_carlo_with_exploring_starts(env, nb_iter=10000)
+    # policy, V, episode = policy_iteration(env)
+    policy, Q = monte_carlo_with_exploring_start(env, nb_iter=10000, GAMMA=0.7)
     # _, policy = monte_carlo_on_policy(env, nb_iter=10000)
 
-    print("Optimal policy: \n", policy)
-    print("Optimal value function: \n", V)
+    if isinstance(policy, dict):
+        print("Optimal policy: \n")
+        pprint.pprint(policy)
+    else:
+        print("Optimal policy: \n", policy)
 
     pygame.init()
     screen = pygame.display.set_mode((env.length * 50, 50))
@@ -29,16 +33,10 @@ def line_world():
             if event.type == pygame.QUIT:
                 running = False
 
-        if not isinstance(policy, dict):
-            action = np.argmax(policy[state])
-            state, _, done = env.step(env.actions[action])
-            env.render(screen)
-            clock.tick(5)
-        else:
-            action = policy[state]
-            state, _, done = env.step(action)
-            env.render(screen)
-            clock.tick(5)
+        action = np.argmax(policy[state])
+        state, _, done = env.step(env.actions[action])
+        env.render(screen)
+        clock.tick(5)
 
         if done:
             state = env.reset()
@@ -48,12 +46,16 @@ def line_world():
 def grid_world():
     env = GridWorld(width=5, height=5)
     # policy, V, episode = value_iteration(env, GAMMA=0.3)
-    policy, V, episode = policy_iteration(env, GAMMA=0.3)
-    # policy = naive_monte_carlo_with_exploring_starts(env, nb_iter=10000)
+    # policy, V, episode = policy_iteration(env, nb_iter=50000, GAMMA=0.3)
+    policy, Q = monte_carlo_with_exploring_start(
+        env, nb_iter=10000, max_step=100, GAMMA=0.3)
     # _, policy = monte_carlo_on_policy(env, nb_iter=100)
 
-    print("Optimal policy: \n", policy)
-    print("Optimal value function: \n", V)
+    if isinstance(policy, dict):
+        print("Optimal policy: \n")
+        pprint.pprint(policy)
+    else:
+        print("Optimal policy: \n", policy)
 
     pygame.init()
     screen_size = (env.width * 100, env.height * 100)
@@ -68,17 +70,11 @@ def grid_world():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        if not isinstance(policy, dict):
-            action = np.argmax(policy[state])
-            print(state, action)
-            state, _, done = env.step(env.actions[action])
-            env.render(screen)
-            clock.tick(5)
-        else:
-            action = policy[state]
-            state, _, done = env.step(action)
-            env.render(screen)
-            clock.tick(5)
+
+        action = np.argmax(policy[state])
+        state, _, done = env.step(env.actions[action])
+        env.render(screen)
+        clock.tick(5)
 
         if done:
             state = env.reset()
