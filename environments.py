@@ -2,30 +2,65 @@ import pygame
 import numpy as np 
 from abc import ABC, abstractmethod
 
+
 class Environment(ABC):
     @abstractmethod
-    def __init__(self):
-        self.state = None
+    def num_states(self) -> int:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def num_actions(self) -> int:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def num_rewards(self) -> int:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def reward(self, i: int) -> float:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def state_id(self) -> int:
+        raise NotImplementedError("This method is not implemented")
 
     @abstractmethod
     def reset(self):
-        raise NotImplementedError("Reset method not implemented")
-    
-    @abstractmethod
-    def initiate_prob_matrix(self):
-        raise NotImplementedError("Initiate_prob_matrix method not implemented")
+        raise NotImplementedError("This method is not implemented")
 
     @abstractmethod
-    def step(self, action):
-        raise NotImplementedError("Step method not implemented")
+    def display(self):
+        raise NotImplementedError("This method is not implemented")
 
     @abstractmethod
-    def render(self, screen):
-        raise NotImplementedError("Render method not implemented")
+    def is_forbidden(self, action: int) -> int:
+        raise NotImplementedError("This method is not implemented")
 
     @abstractmethod
-    def is_done(self):
-        raise NotImplementedError("is_done method not implemented")
+    def is_game_over(self) -> bool:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def available_actions(self) -> np.ndarray:
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def step(self, action: int):
+        raise NotImplementedError("This method is not implemented")
+
+    @abstractmethod
+    def score(self):
+        raise NotImplementedError("This method is not implemented")
+
+    @staticmethod
+    @abstractmethod
+    def from_random_state() -> 'Environment':
+        raise NotImplementedError("This method is not implemented")
+
 
 class LineWorld(Environment):
     def __init__(self, length=10):
@@ -39,9 +74,9 @@ class LineWorld(Environment):
         self.agent_color = (255, 0, 0)
         self.prob_matrix = self.initiate_prob_matrix()
 
-    def from_random_state(self):
+    def from_random_state(self) -> 'LineWorld':
         env = LineWorld(length=self.length)
-        env.state = np.random.randint(0, self.length)
+        env.state = np.random.randint(0, env.length)
         return env
     
     def initiate_prob_matrix(self):
@@ -59,27 +94,64 @@ class LineWorld(Environment):
         
         return p
                     
-    
+    def num_states(self) -> int:
+        return self.length
+
+    def num_actions(self) -> int:
+        return len(self.actions)
+
+    def num_rewards(self) -> int:
+        return len(self.rewards)
+
+    def reward(self, i: int) -> float:
+        return self.rewards[i]
+
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        return self.prob_matrix[s, a, s_p, r_index]
+
+    def state_id(self):
+        return self.state
+
     def reset(self):
         self.state = 0
         return self.state
     
+    def display(self):
+        pass
+
+    def is_forbidden(self, action: int) -> int:
+        if action == 0 and self.state == self.length - 1:
+            return 1
+        elif action == 1 and self.state == 0:
+            return 1
+        return 0
+
+    def is_game_over(self) -> bool:
+        return self.state == self.length - 1
+
+    def available_actions(self):
+        return self.actions
+
     def step(self, action):
         old_state = self.state
 
         if action == 1:
-            self.state = min(self.state + 1, self.goal_position)
+            self.state = min(old_state + 1, self.goal_position)
         elif action == 0:
-            self.state = max(self.state - 1, 0)
+            self.state = max(old_state - 1, 0)
 
         if self.state == self.goal_position:
-            reward = self.rewards[1]  # Goal reached
+            reward = self.rewards[1]
             done = True
         else:
             reward = self.rewards[0]
             done = False
 
-        return self.state, reward, done
+    def score(self):
+        if self.state == self.goal_position:
+            return 1
+
+        return -1
     
     def render(self, screen):
         screen.fill((255, 255, 255))
@@ -90,22 +162,6 @@ class LineWorld(Environment):
             if i == self.goal_position:
                 pygame.draw.rect(screen, self.goal_color, (i * 50, 0, 50, 50))
         pygame.display.flip()
-
-    def is_done(self):
-        return self.state == self.length - 1
-    
-    def score(self):
-        if self.state == self.goal_position:
-            return 1
-        
-        return -1
-    
-    def state_id(self):
-        return self.state
-    
-    def available_actions(self):
-        return self.actions
-    
 
     
 
@@ -122,11 +178,6 @@ class GridWorld(Environment):
         self.goal_color = (0, 255, 0)
         self.agent_color = (255, 0, 0)
         self.prob_matrix = self.initiate_prob_matrix()
-
-    def from_random_state(self):
-        env = GridWorld(width=self.width, height=self.height)
-        env.state = np.random.randint(0, self.length)
-        return env
 
     def initiate_prob_matrix(self):
         p = np.zeros((self.length, len(self.actions), self.length, len(self.rewards)))
@@ -166,9 +217,62 @@ class GridWorld(Environment):
     def _coordinate_to_state(self, x, y):
         return y * self.width + x
 
+    def from_random_state(self) -> 'GridWorld':
+        env = GridWorld(width=self.width, height=self.height)
+        env.state = np.random.randint(0, self.length)
+        return env
+
+    def num_states(self) -> int:
+        return self.length
+
+    def num_actions(self) -> int:
+        return len(self.actions)
+
+    def num_rewards(self) -> int:
+        return len(self.rewards)
+
+    def reward(self, i: int) -> float:
+        return self.rewards[i]
+
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        return self.prob_matrix[s, a, s_p, r_index]
+
+    def state_id(self):
+        return self.state
+
     def reset(self):
         self.state = 0
         return self.state
+
+    def is_forbidden(self, action: int) -> int:
+        no_up = [i for i in range(self.width)]
+        no_left = [i * self.width for i in range(self.height)]
+        no_right = [(i + 1) * self.width - 1 for i in range(self.height)]
+        no_down = [i + self.width * (self.height - 1)
+                   for i in range(self.width)]
+
+        if action == 0 and self.state in no_down:
+            True
+        elif action == 1 and self.state in no_up:
+            True
+        elif action == 2 and self.state in no_left:
+            True
+        elif action == 3 and self.state in no_right:
+            True
+
+    def is_game_over(self):
+        return self.state == self.goal_position
+
+    def available_actions(self):
+        return self.actions
+
+    def score(self):
+        if self.state == self.goal_position:
+            return 1
+        return -1
+
+    def display(self):
+        pass
 
     def step(self, action):
         old_state = self.state
@@ -195,8 +299,6 @@ class GridWorld(Environment):
             reward = self.rewards[0]
             done = False
 
-        return self.state, reward, done
-
     def render(self, screen):
         screen.fill((255, 255, 255))
         cell_size = min(screen.get_width() // self.width,
@@ -221,20 +323,7 @@ class GridWorld(Environment):
 
         pygame.display.flip()
 
-    def is_done(self):
-        return self.state == self.goal_position
-    
-    def score(self):
-        if self.state == self.goal_position:
-            return 1
 
-        return -1
-
-    def state_id(self):
-        return self.state
-    
-    def available_actions(self):
-        return self.actions
 
 
 
