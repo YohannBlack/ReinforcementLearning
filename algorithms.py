@@ -1,3 +1,4 @@
+import time
 import random
 import numpy as np
 from tqdm import tqdm
@@ -152,8 +153,8 @@ def monte_carlo_with_exploring_start(
                 a = np.argmax(pi[s])
 
             while env.is_forbidden(a):
-                aa = [a for a in aa if not env.is_forbidden(a)]
-                a = np.random.choice(aa)
+                allowed_action = [a for a in aa if not env.is_forbidden(a)]
+                a = np.random.choice(allowed_action)
 
             prev_score = env.score()
             env.step(a)

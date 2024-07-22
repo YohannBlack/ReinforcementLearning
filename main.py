@@ -55,7 +55,7 @@ def grid_world():
     # policy, V, episode = value_iteration(env, GAMMA=0.4)
     # policy, V, episode = policy_iteration(env, GAMMA=0.3)
     policy, Q = monte_carlo_with_exploring_start(
-        env, nb_iter=10000, max_step=100, GAMMA=0.3)
+        env, nb_iter=10000, max_step=100, GAMMA=0.999)
     # policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
     # policy, Q = monte_carlo_off_policy(env, nb_iter=10000)
     print("Time taken to train: ", time.time() - start)
@@ -65,6 +65,9 @@ def grid_world():
         pprint.pprint(policy)
     else:
         print("Optimal policy: \n", policy)
+
+    for state, action_prob in policy.items():
+        print(state, np.argmax(action_prob))
 
     pygame.init()
     screen_size = (env.width * 100, env.height * 100)
@@ -81,12 +84,13 @@ def grid_world():
                 running = False
 
         action = np.argmax(policy[state])
-        env.step(env.actions[action])
+        print(env.state_id(), action)
+        env.step(action)
         env.render(screen)
         clock.tick(5)
 
         if env.is_game_over():
-            state = env.reset()
+            return
     
     pygame.quit()
 
@@ -121,7 +125,6 @@ def secret_env0():
             env.reset()
             print("Total reward: ", reward)
             running = False
-
 
 
 

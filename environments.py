@@ -163,7 +163,6 @@ class LineWorld(Environment):
                 pygame.draw.rect(screen, self.goal_color, (i * 50, 0, 50, 50))
         pygame.display.flip()
 
-    
 
 class GridWorld(Environment):
     def __init__(self, width=10, height=10):
@@ -179,8 +178,14 @@ class GridWorld(Environment):
         self.agent_color = (255, 0, 0)
         self.prob_matrix = self.initiate_prob_matrix()
 
+    def from_random_state(self):
+        env = GridWorld(width=self.width, height=self.height)
+        env.state = np.random.randint(0, self.length)
+        return env
+
     def initiate_prob_matrix(self):
-        p = np.zeros((self.length, len(self.actions), self.length, len(self.rewards)))
+        p = np.zeros((self.length, len(self.actions),
+                     self.length, len(self.rewards)))
 
         for s in range(self.length):
             x, y = self._state_to_coordinate(s)
@@ -217,62 +222,9 @@ class GridWorld(Environment):
     def _coordinate_to_state(self, x, y):
         return y * self.width + x
 
-    def from_random_state(self) -> 'GridWorld':
-        env = GridWorld(width=self.width, height=self.height)
-        env.state = np.random.randint(0, self.length)
-        return env
-
-    def num_states(self) -> int:
-        return self.length
-
-    def num_actions(self) -> int:
-        return len(self.actions)
-
-    def num_rewards(self) -> int:
-        return len(self.rewards)
-
-    def reward(self, i: int) -> float:
-        return self.rewards[i]
-
-    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
-        return self.prob_matrix[s, a, s_p, r_index]
-
-    def state_id(self):
-        return self.state
-
     def reset(self):
         self.state = 0
         return self.state
-
-    def is_forbidden(self, action: int) -> int:
-        no_up = [i for i in range(self.width)]
-        no_left = [i * self.width for i in range(self.height)]
-        no_right = [(i + 1) * self.width - 1 for i in range(self.height)]
-        no_down = [i + self.width * (self.height - 1)
-                   for i in range(self.width)]
-
-        if action == 0 and self.state in no_down:
-            True
-        elif action == 1 and self.state in no_up:
-            True
-        elif action == 2 and self.state in no_left:
-            True
-        elif action == 3 and self.state in no_right:
-            True
-
-    def is_game_over(self):
-        return self.state == self.goal_position
-
-    def available_actions(self):
-        return self.actions
-
-    def score(self):
-        if self.state == self.goal_position:
-            return 1
-        return -1
-
-    def display(self):
-        pass
 
     def step(self, action):
         old_state = self.state
@@ -299,6 +251,8 @@ class GridWorld(Environment):
             reward = self.rewards[0]
             done = False
 
+        return self.state, reward, done
+
     def render(self, screen):
         screen.fill((255, 255, 255))
         cell_size = min(screen.get_width() // self.width,
@@ -322,6 +276,21 @@ class GridWorld(Environment):
                                      (x * cell_size, y * cell_size, cell_size, cell_size))
 
         pygame.display.flip()
+
+    def is_done(self):
+        return self.state == self.goal_position
+
+    def score(self):
+        if self.state == self.goal_position:
+            return 1
+
+        return -1
+
+    def state_id(self):
+        return self.state
+
+    def available_actions(self):
+        return self.actions
 
 
 
