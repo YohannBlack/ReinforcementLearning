@@ -81,18 +81,30 @@ class LineWorld(Environment):
         return env
     
     def initiate_prob_matrix(self):
-        p = np.zeros((self.length, len(self.actions), self.length, len(self.rewards)))
-
-        for s in range(self.length):
-            for a in range(len(self.actions)):
-                s_prime = s + self.actions[a]
-                if 0 <= s_prime < self.length:
-                    for r in range(len(self.rewards)):
-                        if s_prime == self.goal_position and self.rewards[r] == 0:
-                            p[s, a, s_prime, r] = 1.0
-                        elif s_prime != self.goal_position and self.rewards[r] == -1:
-                            p[s, a, s_prime, r] = 1.0
+        num_states = self.num_states()
+        num_actions = self.num_actions()
+        num_rewards = self.num_rewards()
         
+        p = np.zeros((num_states, num_actions, num_states, num_rewards))
+        
+        for s in range(num_states):
+            for a in range(num_actions):
+                if a == 1:
+                    s_prime = s + 1
+                elif a == 0:
+                    s_prime = s - 1
+                else:
+                    raise ValueError("Unknown action")
+
+                s_prime = max(0, min(s_prime, num_states - 1))
+
+                if s_prime == self.goal_position:
+                    reward_index = self.rewards.index(0)
+                    p[s, a, s_prime, reward_index] = 1.0
+                else:
+                    reward_index = self.rewards.index(-1)
+                    p[s, a, s_prime, reward_index] = 1.0
+
         return p
                     
     def num_states(self) -> int:
@@ -121,9 +133,9 @@ class LineWorld(Environment):
         pass
 
     def is_forbidden(self, action: int) -> int:
-        if action == 0 and self.state == self.length - 1:
+        if action == 1 and self.state == self.length - 1:
             return 1
-        elif action == 1 and self.state == 0:
+        elif action == 0 and self.state == 0:
             return 1
         return 0
 

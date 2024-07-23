@@ -8,110 +8,98 @@ from typing import Dict, List, Tuple
 from environments import Environment
 
 
-def value_iteration(env, GAMMA=0.999, THETA=0.0001):
-    V = np.zeros(env.length)
-    pi = np.ones((env.length, len(env.actions))) / len(env.actions)
-    episode = 1
+def value_iteration(env, GAMMA: float = 0.999, THETA: float = 0.00001):
+    num_states = env.num_states()
+    num_actions = env.num_actions()
+    
+    V = np.zeros(num_states)
+    
+    policy = {}
 
+    episode = 1
+    
     while True:
-        delta = 0.
-        for s in range(env.length):
-            old_v = V[s]
-            best_value = float("-inf")
-            for a in range(len(env.actions)):
-                total = 0.
-                for s_prime in range(env.length):
-                    for r in range(len(env.rewards)):
-                        total += env.prob_matrix[s, a, s_prime, r] * \
-                            (env.rewards[r] + GAMMA * V[s_prime])
-                if total > best_value:
-                    best_value = total
-            V[s] = best_value
-            delta = max(delta, abs(V[s] - old_v))
+        delta = 0
+        V_copy = np.copy(V)
+        
+        for s in range(num_states):
+            action_values = np.zeros(num_actions)
+            for a in range(num_actions):
+                action_value = 0
+                for s_prime in range(num_states):
+                    for r_index in range(env.num_rewards()):
+                        prob = env.p(s, a, s_prime, r_index)
+                        reward = env.reward(r_index)
+                        action_value += prob * (reward + GAMMA * V_copy[s_prime])
+                action_values[a] = action_value
+            
+            V[s] = np.max(action_values)
+            delta = max(delta, abs(V[s] - V_copy[s]))
+        
         if delta < THETA:
             break
         episode += 1
-
-    for s in range(env.length):
-        best_value = float("-inf")
-        best_action = None
-        for a in range(len(env.actions)):
-            total = 0.
-            for s_prime in range(env.length):
-                for r in range(len(env.rewards)):
-                    total += env.prob_matrix[s, a, s_prime, r] * \
-                        (env.rewards[r] + GAMMA * V[s_prime])
-            if total > best_value:
-                best_value = total
-                best_action = a
-        pi[s] = np.eye(len(env.actions))[best_action]
-
+    
+    for s in range(num_states):
+        action_values = np.zeros(num_actions)
+        for a in range(num_actions):
+            action_value = 0
+            for s_prime in range(num_states):
+                for r_index in range(env.num_rewards()):
+                    prob = env.p(s, a, s_prime, r_index)
+                    reward = env.reward(r_index)
+                    action_value += prob * (reward + GAMMA * V[s_prime])
+            action_values[a] = action_value
+        policy[s] = np.argmax(action_values)
+    
     print("Value Iteration episodes = ", episode)
-    return pi, V, episode
+    return V, policy
 
 
-def policy_evaluation(env: Environment, pi: np.ndarray, GAMMA: float = 0.999, THETA: float = 0.0001) -> Tuple[np.ndarray, int]:
-
+def policy_iteration(env, GAMMA: float = 0.999, THETA: float = 0.0001):
     num_states = env.num_states()
     num_actions = env.num_actions()
-    num_rewards = env.num_rewards()
 
+    policy = np.zeros(num_states, dtype=int)
+    
     V = np.zeros(num_states)
-    episode = 1
-
-    while True:
-        delta = 0.0
-        for s in range(num_states):
-            old_v = V[s]
-            new_v = 0.0
-            for a in env.available_actions():
-                total_inter = 0.0
-                for s_p in range(num_states):
-                    for r in range(num_rewards):
-                        total_inter += env.p(s, a, s_p, r) * \
-                            (env.reward(r) + GAMMA * V[s_p])
-                new_v += pi[s, a] * total_inter
-            V[s] = new_v
-            delta = max(delta, abs(V[s] - old_v))
-        if delta < THETA:
-            return V, episode
-        episode += 1
-
-
-def policy_iteration(env: Environment, GAMMA: float = 0.999, THETA: float = 0.0001) -> Tuple[np.ndarray, np.ndarray, int]:
-
-    num_states = env.num_states()
-    num_actions = env.num_actions()
-    num_rewards = env.num_rewards()
-
-    episode = 1
-    pi = np.ones((num_states, num_actions)) / num_actions
-    V = np.zeros(num_states)
-
+    
     while True:
         # Policy Evaluation
-        V, _ = policy_evaluation(env, pi, GAMMA, THETA)
-
+        while True:
+            delta = 0
+            for s in range(num_states):
+                v = V[s]
+                action = policy[s]
+                V[s] = sum(env.p(s, action, s_prime, r_index) * (env.reward(r_index) + GAMMA * V[s_prime])
+                           for s_prime in range(num_states)
+                           for r_index in range(env.num_rewards()))
+                delta = max(delta, abs(v - V[s]))
+            if delta < THETA:
+                break
+        
         # Policy Improvement
         policy_stable = True
         for s in range(num_states):
-            old_a = np.argmax(pi[s])
+            old_action = policy[s]
             action_values = np.zeros(num_actions)
-            for a in env.available_actions():
-                for s_p in range(num_states):
-                    for r in range(num_rewards):
-                        action_values[a] += env.p(s, a, s_p, r) * \
-                            (env.reward(r) + GAMMA * V[s_p])
-            best_a = np.argmax(action_values)
-            pi[s] = np.eye(num_actions)[best_a]
-            if old_a != best_a:
+            for a in range(num_actions):
+                action_values[a] = sum(env.p(s, a, s_prime, r_index) * (env.reward(r_index) + GAMMA * V[s_prime])
+                                      for s_prime in range(num_states)
+                                      for r_index in range(env.num_rewards()))
+            policy[s] = np.argmax(action_values)
+            
+            if old_action != policy[s]:
                 policy_stable = False
+        
         if policy_stable:
             break
-        episode += 1
-
-    print("Policy Iteration episodes = ", episode)
-    return pi, V, episode
+    
+    target_policy = {}
+    for i in range(len(policy)):
+        target_policy[i] = policy[i]
+    
+    return V, target_policy
 
 
 def monte_carlo_with_exploring_start(
@@ -197,6 +185,22 @@ def monte_carlo_with_exploring_start(
     return pi, Q, cummulative_reward_avg, mean_Q_value
 
 
+def epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):
+    A = np.zeros(n_action, dtype=float)
+    n_available_actions = len(available_actions)
+
+    if n_available_actions == 0:
+        return A
+
+    if random.uniform(0, 1) < epsilon:
+        prob = 1.0 / len(available_actions)
+        for action in available_actions:
+            A[action] = prob
+    else:
+        best_action = max(available_actions, key=lambda a: Q[(state, a)])
+        A[best_action] = 1.0
+    return A
+
 def monte_carlo_on_policy(
         env: Environment,
         nb_iter: int = 10000,
@@ -207,85 +211,71 @@ def monte_carlo_on_policy(
 
     num_actions = env.num_actions()
 
-    Q: Dict[Tuple, List[float]] = defaultdict(lambda: [0.0] * num_actions)
-    pi: Dict[Tuple, List[float]] = defaultdict(
-        lambda: [1.0 / num_actions] * num_actions)
-    Returns: Dict[Tuple, List[float]] = defaultdict(list)
+    Q = defaultdict(float)
+    total_return = defaultdict(float)
+    N = defaultdict(int)
 
     cummulative_reward_avg = []
-    mean_Q_value = []
 
     for it in tqdm(range(nb_iter)):
-        env = env.from_random_state()
+        s = env.reset()
         trajectory = []
         steps_count = 0
         episode_reward = 0
 
         while not env.is_game_over() and steps_count < max_step:
-            s = env.state_id()
             aa = env.available_actions()
+            action_probs = epsilon_greedy_policy(
+                Q, epsilon, s, aa, num_actions)
+            a = np.random.choice(aa, p=[action_probs[a] for a in aa])
 
-            if s not in pi:
-                pi[s] = [
-                    1.0 / len(aa) if a in aa else 0.0 for a in range(num_actions)] * num_actions
-
-            if np.random.rand() < epsilon:
-                a = np.random.choice(aa)
-            else:
-                a = np.argmax(pi[s])
-
-            while env.is_forbidden(a):
-                a = np.random.choice(aa)
-
-            prev_score = env.score()
             env.step(a)
-            r = env.score() - prev_score
+            r = env.score()
             episode_reward += r
 
             trajectory.append((s, a, r, aa))
             steps_count += 1
 
+            s = env.state_id()
+
         cummulative_reward_avg.append(episode_reward)
 
-        G = 0
-        for t, (s, a, r, aa) in reversed(list(enumerate(trajectory))):
-            G = GAMMA * G + r
+        all_state_actions = [(s, a) for s, a, _, _ in trajectory]
+        rewards = [r for _, _, r, _ in trajectory]
 
-            if all(triplet[0] != s or triplet[1] != a for triplet in trajectory[:t]):
-                Returns[(s, a)].append(G)
-                Q[s][a] = np.mean(Returns[(s, a)])
+        for t, (s, a, r, aa) in enumerate(trajectory):
 
-                best_a = np.argmax(Q[s])
-                pi[s] = [epsilon / num_actions +
-                         (1 - epsilon) * (1. if i == best_a else 0.) for i in range(num_actions)]
+            if not (s, a) in all_state_actions[0:t]:
+                R = GAMMA * sum(rewards[t:])
+                total_return[(s, a)] += R
 
-        total_q_value = sum(sum(q) for q in Q.values())
-        num_state_action_pairs = sum(len(q) for q in Q.values())
-        mean_q_value = total_q_value / num_state_action_pairs
-        mean_Q_value.append(mean_q_value)
+                N[(s, a)] += 1
 
-    return pi, Q, cummulative_reward_avg, mean_Q_value
+                Q[(s, a)] = total_return[(s, a)] / N[(s, a)]
 
+    policy = {}
+    for (s, a), q in Q.items():
+        if s not in policy or Q[(s, policy[s])] < q:
+            policy[s] = a
 
-def create_behaviour_policy(nA):
-    def policy_fn(observation, available_actions):
-        A = np.zeros(nA, dtype=float)
-        if len(available_actions) != 0:
-            prob = 1.0 / len(available_actions)
-            for action in available_actions:
-                A[action] = prob
+    if None in policy:
+        policy[0] = policy[None]
 
-        return A
-    return policy_fn
+    return policy, Q, cummulative_reward_avg
 
 
-def create_target_policy(Q):
-    def policy_fn(state):
-        A = np.zeros_like(Q[state], dtype=float)
-        best_action = np.argmax(Q[state])
-        A[best_action] = 1.0
-        return A
-    return policy_fn
+def get_random_policy(env):
+    num_actions = env.num_actions()
+    available_actions = env.available_actions()
+    state_policy = {}
+
+    state_policy = {action: 0.0 for action in range(num_actions)}
+    action_prob = 1.0 / len(available_actions) if available_actions else 0.0
+
+    for action in available_actions:
+        state_policy[action] = action_prob
+
+    return state_policy
 
 def monte_carlo_off_policy(
     env,
@@ -295,13 +285,13 @@ def monte_carlo_off_policy(
     epsilon: float = 0.1
 ) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
 
+    num_state = env.num_states()
     num_actions = env.num_actions()
 
     Q = defaultdict(lambda: np.zeros(num_actions))
     C = defaultdict(lambda: np.zeros(num_actions))
-
-    behaviour_policy = create_behaviour_policy(num_actions)
-    pi = create_target_policy(Q)
+    target_policy = {}
+    b = {}
 
     cummulative_reward_avg = []
     mean_Q_value = []
@@ -314,19 +304,28 @@ def monte_carlo_off_policy(
 
         s = env.state_id()
 
+        if s not in b:
+            b[s] = get_random_policy(env)
+
         while not env.is_game_over() and step_count < max_step:
-            aa = env.available_actions()
-            probs = behaviour_policy(s, aa)
-            action = np.random.choice(aa, p=[probs[a] for a in aa])
+            action_probs = b[s]
+            valid_actions = [
+                a for a, probs in action_probs.items() if probs > 0]
+
+            if valid_actions:
+                action = np.random.choice(valid_actions)
+            else:
+                action = np.random.choice(env.available_actions())
 
             env.step(action)
-            next_state = env.state_id()
             r = env.score()
-
-            trajectory.append((s, action, r, aa))
-            step_count += 1
+            trajectory.append((s, action, r, b[s]))
             episode_reward += r
-            s = next_state
+            s = env.state_id()
+            step_count += 1
+
+            if s not in b:
+                b[s] = get_random_policy(env)
 
         cummulative_reward_avg.append(episode_reward)
 
@@ -341,24 +340,24 @@ def monte_carlo_off_policy(
             C[s][a] += W
             Q[s][a] += (W/C[s][a]) * (G - Q[s][a])
 
-            if a != np.argmax(pi(s)):
-                break
-            
-            behaviour_prob = behaviour_policy(s, aa)[a]
-            if behaviour_prob == 0:
-                break
+            if s not in target_policy:
+                target_policy[s] = {
+                    a: 1/num_actions for a in range(num_actions)}
 
-            W = W * (pi(s)[action]/behaviour_prob)
+            best_action = np.argmax(Q[s])
+            for a in range(num_actions):
+                target_policy[s][a] = epsilon / num_actions + \
+                    (1 - epsilon) * (1 if a == best_action else 0)
 
-        total_q_value = sum(sum(q) for q in Q.values())
-        num_state_action_pairs = sum(len(q) for q in Q.values())
-        mean_q_value = total_q_value / num_state_action_pairs
-        mean_Q_value.append(mean_q_value)
+            W *= 1 / b[s][a]
 
-    return pi, Q, cummulative_reward_avg, mean_Q_value
+        mean_Q_value.append(np.mean([Q[s][a]
+                            for s in Q for a in range(num_actions)]))
+
+    return target_policy, Q, cummulative_reward_avg, mean_Q_value
 
 
-def epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):
+def sarsa_epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):
     A = np.zeros(n_action, dtype=float)
     n_available_actions = len(available_actions)
 
@@ -395,21 +394,20 @@ def sarsa(env,
         env.reset()
         state = env.state_id()
         aa = env.available_actions()
-        total_reward = 0.
 
-        action_probs = epsilon_greedy_policy(
+        action_probs = sarsa_epsilon_greedy_policy(
             Q, epsilon, state, aa, num_actions)
         action = np.random.choice(aa, p=[action_probs[a] for a in aa])
 
         num_step = 0
-
+        total_reward = 0.
         while not env.is_game_over() and num_step < max_step:
             env.step(action)
             next_state = env.state_id()
             reward = env.score()
 
             aa = env.available_actions()
-            next_action_probs = epsilon_greedy_policy(
+            next_action_probs = sarsa_epsilon_greedy_policy(
                 Q, epsilon, next_state, aa, num_actions)
             next_action = np.random.choice(
                 aa, p=[next_action_probs[a] for a in aa])
@@ -426,6 +424,7 @@ def sarsa(env,
         cummulative_reward_avg.append(total_reward)
 
     return Q, cummulative_reward_avg
+
 
 def expected_sarsa(env,
                      nb_iter: int = 10000,
@@ -445,12 +444,12 @@ def expected_sarsa(env,
         total_reward = 0.
         step = 0
 
-        while not env.is_game_over() and step < max_step:
-            aa = env.available_actions()
-            action_probs = epsilon_greedy_policy(
-                Q, epsilon, state, aa, num_actions)
-            action = np.random.choice(aa, p=[action_probs[a] for a in aa])
+        aa = env.available_actions()
+        action_probs = sarsa_epsilon_greedy_policy(
+            Q, epsilon, state, aa, num_actions)
+        action = np.random.choice(aa, p=[action_probs[a] for a in aa])
 
+        while not env.is_game_over() and step < max_step:
             env.step(action)
             next_state = env.state_id()
             reward = env.score()
@@ -511,6 +510,53 @@ def q_learning(env,
     return Q, cummulative_reward_avg
 
 
+def dyna_q(env, nb_iter: int = 10000, alpha: float = 0.5, gamma: float = 0.999, epsilon: float = 0.1, max_step: int = 1000):
+
+    num_actions = env.num_actions()
+    num_state = env.num_states()
+
+    Q = np.zeros((num_state, num_actions))
+    model = {}
+
+    cummulative_reward_avg = []
+
+    for it in tqdm(range(nb_iter)):
+        env = env.from_random_state()
+        state = env.state_id()
+        total_reward = 0.
+
+        while not env.is_game_over():
+            aa = env.available_actions()
+
+            if np.random.rand() < epsilon:
+                action = np.random.choice(aa)
+            else:
+                action = np.argmax(Q[state])
+
+            env.step(action)
+            reward = env.score()
+            next_state = env.state_id()
+
+            print(
+                f"State: {state}, Action: {action}, Reward: {reward}, Next State: {next_state}")
+
+            Q[state][action] += alpha * \
+                (reward + gamma * np.argmax(Q[next_state]) - Q[state, action])
+
+            model[(state, action)] = (next_state, reward)
+
+            for _ in range(max_step):
+                state, action = random.choice(list(model.keys()))
+                next_state, reward = model[(state, action)]
+                Q[state, action] += alpha * \
+                    (reward + gamma * np.max(Q[next_state]) - Q[state, action])
+
+            state = next_state
+            total_reward += reward
+
+        cummulative_reward_avg.append(total_reward)
+
+    return Q, cummulative_reward_avg
 
 
 
