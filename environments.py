@@ -72,6 +72,7 @@ class LineWorld(Environment):
         self.goal_position = self.length - 1
         self.goal_color = (0, 255, 0)
         self.agent_color = (255, 0, 0)
+        self.start_color = (0, 0, 255)
         self.prob_matrix = self.initiate_prob_matrix()
 
     def from_random_state(self) -> 'LineWorld':
@@ -130,7 +131,7 @@ class LineWorld(Environment):
         return self.state == self.length - 1
 
     def available_actions(self):
-        return self.actions
+        return [a for a in self.actions if not self.is_forbidden(a)]
 
     def step(self, action):
         old_state = self.state
@@ -159,28 +160,31 @@ class LineWorld(Environment):
             pygame.draw.rect(screen, (0, 0, 0), (i * 50, 0, 50, 50), 1)
             if i == self.state:
                 pygame.draw.rect(screen, self.agent_color, (i * 50, 0, 50, 50))
+            if i == self.start_color:
+                pygame.draw.rect(screen, self.start_color, (i * 50, 0, 50, 50))
             if i == self.goal_position:
                 pygame.draw.rect(screen, self.goal_color, (i * 50, 0, 50, 50))
         pygame.display.flip()
 
 
 class GridWorld(Environment):
-    def __init__(self, width=10, height=10):
+    def __init__(self, width: int, height: int) -> Environment:
         super().__init__()
         self.width = width
         self.height = height
         self.length = width * height
         self.state = 0
         self.actions = [0, 1, 2, 3]
-        self.rewards = [-1.0, 1.0]
-        self.goal_position = self.length - 1
+        self.rewards = [-1., 1.]
+        self.goal_position = (self.width - 1, self.height - 1)
         self.goal_color = (0, 255, 0)
         self.agent_color = (255, 0, 0)
+        self.start_color = (0, 0, 255)
         self.prob_matrix = self.initiate_prob_matrix()
 
-    def from_random_state(self):
+    def from_random_state(self) -> 'GridWorld':
         env = GridWorld(width=self.width, height=self.height)
-        env.state = np.random.randint(0, self.length)
+        env.state = np.random.randint(0, env.length)
         return env
 
     def initiate_prob_matrix(self):
@@ -188,113 +192,181 @@ class GridWorld(Environment):
                      self.length, len(self.rewards)))
 
         for s in range(self.length):
-            x, y = self._state_to_coordinate(s)
             for a in range(len(self.actions)):
-
-                if a == 0:
-                    new_x, new_y = x, y + 1
-                elif a == 1:
-                    new_x, new_y = x, y - 1
-                elif a == 2:
-                    new_x, new_y = x + 1, y
-                elif a == 3:
-                    new_x, new_y = x - 1, y
-
-                if self._is_valid_state(new_x, new_y):
-                    s_prime = self._coordinate_to_state(new_x, new_y)
-                else:
-                    s_prime = s
-
-                if s_prime == self.goal_position:
-                    p[s, a, s_prime, 1] = 1.0
-                else:
-                    p[s, a, s_prime, 0] = 1.0
+                s_prime = self.next_state(s, a)
+                if 0 <= s_prime < self.length and s_prime != s:
+                    for r in range(len(self.rewards)):
+                        if s_prime == self.goal_position and self.rewards[r] == 1.:
+                            p[s, a, s_prime, r] = 1.0
+                        elif s_prime != self.goal_position and self.rewards[r] == -1.:
+                            p[s, a, s_prime, r] = 1.0
         return p
 
-    def _is_valid_state(self, x, y):
-        return 0 <= x < self.width and 0 <= y < self.height
+    def next_state(self, s, action):
+        row, col = divmod(s, self.width)
+        if action == 0 and row > 0:  # Up
+            row -= 1
+        elif action == 1 and row < self.height - 1:  # Down
+            row += 1
+        elif action == 2 and col > 0:  # Left
+            col -= 1
+        elif action == 3 and col < self.width - 1:  # Right
+            col += 1
+        return row * self.width + col
 
-    def _state_to_coordinate(self, state):
-        # x, y = divmod(state, self.width)
-        x, y = state % self.width, state // self.width
-        return x, y
+    def num_states(self) -> int:
+        return self.length
 
-    def _coordinate_to_state(self, x, y):
-        return y * self.width + x
+    def num_actions(self) -> int:
+        return len(self.actions)
+
+    def num_rewards(self) -> int:
+        return len(self.rewards)
+
+    def reward(self, i: int) -> float:
+        return self.rewards[i]
+
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        return self.prob_matrix[s, a, s_p, r_index]
+
+    def state_id(self):
+        return self.state
 
     def reset(self):
         self.state = 0
         return self.state
 
+    def display(self):
+        pass
+
+    def is_forbidden(self, action: int) -> int:
+        row, col = divmod(self.state, self.width)
+        if (action == 0 and row == 0) or (action == 1 and row == self.height - 1) or \
+           (action == 2 and col == 0) or (action == 3 and col == self.width - 1):
+            return 1
+        return 0
+
+    def is_game_over(self) -> bool:
+        return self.state == self.goal_position
+
+    def available_actions(self) -> np.ndarray:
+        return [a for a in self.actions if not self.is_forbidden(a)]
+
     def step(self, action):
+        if self.is_forbidden(action):
+            raise ValueError("Invalid action")
+
         old_state = self.state
-        x, y = self._state_to_coordinate(old_state)
+        self.state = self.next_state(old_state, action)
 
-        if action == 0:
-            new_x, new_y = x, y + 1
-        elif action == 1:
-            new_x, new_y = x, y - 1
-        elif action == 2:
-            new_x, new_y = x + 1, y
-        elif action == 3:
-            new_x, new_y = x - 1, y
-
-        if self._is_valid_state(new_x, new_y):
-            self.state = self._coordinate_to_state(new_x, new_y)
-        else:
-            self.state = old_state
-
+    def score(self):
         if self.state == self.goal_position:
-            reward = self.rewards[1]
-            done = True
-        else:
-            reward = self.rewards[0]
-            done = False
-
-        return self.state, reward, done
+            return self.rewards[1]
+        return self.rewards[0]
 
     def render(self, screen):
         screen.fill((255, 255, 255))
         cell_size = min(screen.get_width() // self.width,
                         screen.get_height() // self.height)
-
-        for y in range(self.height):
-            for x in range(self.width):
-                pygame.draw.rect(screen,
-                                 (0, 0, 0),
-                                 (x * cell_size, y * cell_size,
-                                  cell_size, cell_size),
-                                 1)
-                current_state = self._coordinate_to_state(x, y)
-                if current_state == self.state:
-                    pygame.draw.rect(screen,
-                                     self.agent_color,
-                                     (x * cell_size, y * cell_size, cell_size, cell_size))
-                if current_state == self.goal_position:
-                    pygame.draw.rect(screen,
-                                     self.goal_color,
-                                     (x * cell_size, y * cell_size, cell_size, cell_size))
-
+        for row in range(self.height):
+            for col in range(self.width):
+                i = row * self.width + col
+                pygame.draw.rect(screen, (0, 0, 0),
+                                 (col * cell_size, row * cell_size, cell_size, cell_size), 1)
+                if i == self.start_color:
+                    pygame.draw.rect(screen, self.start_color,
+                                     (col * cell_size, row * cell_size, cell_size, cell_size))
+                if i == self.state:
+                    pygame.draw.rect(screen, self.agent_color,
+                                     (col * cell_size, row * cell_size, cell_size, cell_size))
+                if i == self.goal_position:
+                    pygame.draw.rect(screen, self.goal_color,
+                                     (col * cell_size, row * cell_size, cell_size, cell_size))
         pygame.display.flip()
 
-    def is_done(self):
-        return self.state == self.goal_position
 
-    def score(self):
-        if self.state == self.goal_position:
-            return 1
+class TwoRoundRockPaperScissors(Environment):
+    def __init__(self):
+        super().__init__()
+        self.state = 0
+        self.actions = [0, 1, 2]  # Rock, Paper, Scissors
+        self.rewards = [-1, 0, 1]
+        self.agent_first_round = None
+        self.opponent_first_round_action = None
+        self.opponent_second_round_action = None
 
-        return -1
+    def from_random_state(self) -> 'TwoRoundRockPaperScissors':
+        return TwoRoundRockPaperScissors()
 
-    def state_id(self):
+    def num_states(self) -> int:
+        return 2
+
+    def num_actions(self) -> int:
+        return len(self.actions)
+
+    def num_rewards(self) -> int:
+        return len(self.rewards)
+
+    def reward(self, i: int) -> float:
+        return self.rewards[i]
+
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        if s == 0 and s_p == 1:
+            return 1.0 if a in self.actions else 0.0
+        elif s == 1 and s_p == 2:
+            return 1.0 if a in self.actions else 0.0
+        return 0.0
+
+    def state_id(self) -> int:
         return self.state
 
-    def available_actions(self):
-        return self.actions
+    def reset(self):
+        self.state = 0
+        self.agent_first_round = None
+        self.opponent_first_round_action = None
+        self.opponent_second_round_action = None
+        return self.state
 
+    def display(self):
+        print(f"Current state: {self.state}")
+        print(f"Agent's first round action: {self.agent_first_round_action}")
+        print(
+            f"Opponent's first round action: {self.opponent_first_round_action}")
+        print(
+            f"Opponent's second round action: {self.opponent_second_round_action}")
 
+    def is_forbidden(self, action: int) -> int:
+        return 0
 
+    def is_game_over(self) -> bool:
+        return self.state == 2
 
+    def available_actions(self) -> np.ndarray:
+        if self.state == 0:
+            return self.actions
+        if self.state == 1:
+            return self.actions
+        return []
 
-        
+    def step(self, action: int):
+        if self.state == 0:
+            self.agent_first_round = action
+            self.opponent_first_round_action = np.random.choice(self.actions)
+            self.state = 1
+        elif self.state == 1:
+            self.opponent_second_round_action = self.agent_first_round
+            self.state = 2
+        else:
+            raise ValueError("Game is over")
 
+    def score(self):
+        return
+
+    def _calculate_score(self, agent_action, opponent_action):
+        if agent_action == opponent_action:
+            return self.rewards[1]
+        elif (agent_action == 0 and opponent_action == 2) or \
+             (agent_action == 1 and opponent_action == 0) or \
+             (agent_action == 2 and opponent_action == 1):
+            return self.rewards[2]
+        return self.rewards[0]

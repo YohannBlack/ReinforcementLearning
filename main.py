@@ -2,10 +2,12 @@ import pygame
 import numpy as np
 import pprint
 import time
+import matplotlib.pyplot as plt
 
+from utils import visualize_monte_carlo, visualize_temporal_difference, execute_comparison_td
 from secret_envs_wrapper import SecretEnv0, SecretEnv1, SecretEnv2, SecretEnv3
 from environments import LineWorld, GridWorld
-from algorithms import value_iteration, policy_iteration, monte_carlo_with_exploring_start, monte_carlo_on_policy, monte_carlo_off_policy
+from algorithms import value_iteration, policy_iteration, monte_carlo_with_exploring_start, monte_carlo_on_policy, monte_carlo_off_policy, sarsa, expected_sarsa, q_learning
 
 
 def line_world():
@@ -13,17 +15,35 @@ def line_world():
 
     start = time.time()
     # policy, V, episode = value_iteration(env)
-    policy, V, episode = policy_iteration(env)
+    # policy, V, episode = policy_iteration(env)
     # policy, Q = monte_carlo_with_exploring_start(env, nb_iter=10000)
     # policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
     # policy, Q = monte_carlo_off_policy(env, nb_iter=10000)
+    # Q, cumsum = sarsa(env, nb_iter=10000, max_step=10)
+    Q, cumsum = expected_sarsa(env, nb_iter=10000, max_step=100)
+    # Q, cumsum = q_learning(env, nb_iter=10000, max_step=10)
     print("Time taken to train: ", time.time() - start)
+
+    print(Q)
+    policy = {}
+    for state, actions in Q.items():
+        best_action = np.argmax(actions)
+
+        ont_hot_action = np.zeros(env.num_actions())
+        ont_hot_action[best_action] = 1.0
+
+        policy[state] = ont_hot_action
+
+    V = Q
 
     if isinstance(policy, dict):
         print("Optimal policy: \n")
         pprint.pprint(policy)
+
+        print("Optimal value function: \n", V)
     else:
         print("Optimal policy: \n", policy)
+        print("Optimal value function: \n", V)
 
     pygame.init()
     screen = pygame.display.set_mode((env.length * 50, 50))
@@ -52,22 +72,34 @@ def grid_world():
     env = GridWorld(width=5, height=5)
 
     start = time.time()
-    # policy, V, episode = value_iteration(env, GAMMA=0.4)
+    # policy, V, episode = value_iteration(env)
     # policy, V, episode = policy_iteration(env, GAMMA=0.3)
-    policy, Q = monte_carlo_with_exploring_start(
-        env, nb_iter=10000, max_step=100, GAMMA=0.999)
+    # policy, Q = monte_carlo_with_exploring_start(
+    #     env, nb_iter=10000, max_step=100, GAMMA=0.999)
     # policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
     # policy, Q = monte_carlo_off_policy(env, nb_iter=10000)
+    Q = sarsa(env, nb_iter=10000)
     print("Time taken to train: ", time.time() - start)
+
+    policy = {}
+    for state, actions in Q.items():
+        best_action = np.argmax(actions)
+
+        ont_hot_action = np.zeros(env.num_actions())
+        ont_hot_action[best_action] = 1.0
+
+        policy[state] = ont_hot_action
+
+    V = Q
 
     if isinstance(policy, dict):
         print("Optimal policy: \n")
         pprint.pprint(policy)
+
+        print(V)
     else:
         print("Optimal policy: \n", policy)
-
-    for state, action_prob in policy.items():
-        print(state, np.argmax(action_prob))
+        print("", V)
 
     pygame.init()
     screen_size = (env.width * 100, env.height * 100)
@@ -83,8 +115,8 @@ def grid_world():
             if event.type == pygame.QUIT:
                 running = False
 
-        action = np.argmax(policy[state])
-        print(env.state_id(), action)
+        action = np.argmax(policy[env.state_id()])
+        print(env.available_actions())
         env.step(action)
         env.render(screen)
         clock.tick(5)
@@ -96,23 +128,153 @@ def grid_world():
 
 
 def secret_env0():
+
+    # Approx. 8k states
     env = SecretEnv0()
+
+    exec_time = {}
+
+    # policy, V, episode = value_iteration(env)
+    # policy, V, episode = policy_iteration(env)
+    # policy, Q = monte_carlo_with_exploring_start(
+    #     env, nb_iter=10000, max_step=8000)
+    # policy, Q = monte_carlo_on_policy(env, nb_iter=10000, max_step=8000)
+    # policy, Q = monte_carlo_off_policy(env, nb_iter=100000, max_step=10000)
+    Q_sarsa, cumm_avg_sarsa, Q_q_l, cumm_avg_q_l, Q_expected_sarsa, cumm_avg_sarsa_e, exec_time = execute_comparison_td(
+        env, nb_iter=50000, alpha=0.3, gamma=0.999, epsilon=0.1, max_step=2500)
+    visualize_temporal_difference(
+        cumm_avg_sarsa, cumm_avg_q_l, cumm_avg_sarsa_e, exec_time, "env0")
+
+    # policy = {}
+    # for state, actions in Q.items():
+    #     best_action = np.argmax(actions)
+
+    #     ont_hot_action = np.zeros(env.num_actions())
+    #     ont_hot_action[best_action] = 1.0
+
+    #     policy[state] = ont_hot_action
+
+    # V = Q
+
+    # env.reset()
+
+    # reward = 0
+    # i = 0
+    # running = True
+    # while running:
+    #     action = np.argmax(policy[env.state_id()])
+    #     env.step(action)
+    #     reward += env.score()
+    #     i += 1
+    #     env.display()
+
+    #     if env.is_game_over():
+    #         env.reset()
+    #         print("Total reward for secret env 0: ", reward)
+    #         print("Number of steps: ", i)
+    #         running = False
+
+
+def secret_env1():
+    # 65 536 states
+    env = SecretEnv1()
+    start = time.time()
+    # policy, V, episode = value_iteration(env)
+    # policy, V, episode = policy_iteration(env)
+    # policy, Q = monte_carlo_with_exploring_start(
+    #     env, nb_iter=100000, max_step=1000)
+    # policy, Q = monte_carlo_on_policy(env, nb_iter=200000, max_step=100)
+    # policy, Q = monte_carlo_off_policy(env, nb_iter=100000, max_step=10000)
+
+    Q_sarsa, cumm_avg_sarsa, Q_q_l, cumm_avg_q_l, Q_expected_sarsa, cumm_avg_sarsa_e, exec_time = execute_comparison_td(
+        env, nb_iter=15000, alpha=0.1, gamma=0.999, epsilon=0.1, max_step=2500)
+    visualize_temporal_difference(
+        cumm_avg_sarsa, cumm_avg_q_l, cumm_avg_sarsa_e, exec_time, "env1")
+
+    # policy = {}
+    # for state, actions in Q.items():
+    #     best_action = np.argmax(actions)
+
+    #     ont_hot_action = np.zeros(env.num_actions())
+    #     ont_hot_action[best_action] = 1.0
+
+    #     policy[state] = ont_hot_action
+
+    # env.reset()
+
+    # reward = 0
+    # running = True
+    # while running:
+    #     action = np.argmax(policy[env.state_id()])
+    #     env.step(action)
+    #     reward += env.score()
+    #     env.display()
+
+    #     if env.is_game_over():
+    #         env.reset()
+    #         print("Total reward for secret env 1: ", reward)
+    #         running = False
+
+
+def secret_env2():
+    # 2 097 152
+    env = SecretEnv2()
 
     start = time.time()
     # policy, V, episode = value_iteration(env)
     # policy, V, episode = policy_iteration(env)
-    policy, Q = monte_carlo_with_exploring_start(
-        env, nb_iter=10000, max_step=8000, GAMMA=0.9)
-    # policy, Q = monte_carlo_on_policy(env, nb_iter=10000)
-    # policy, Q = monte_carlo_off_policy(env, nb_iter=10000)
+    # policy, Q = monte_carlo_with_exploring_start(nv, nb_iter=100000, max_step=10000)
+    # policy, Q = monte_carlo_on_policy(
+    #     env, nb_iter=10000, max_step=100, GAMMA=0.9)
+    # policy, Q = monte_carlo_off_policy(env, nb_iter=100000, max_step=10000)
+
+    # print("Time taken to train: ", time.time() - start)
+
+    # policy = {}
+
+    # for state, actions in Q.items():
+    #     best_action = np.argmax(actions)
+
+    #     ont_hot_action = np.zeros(env.num_actions())
+    #     ont_hot_action[best_action] = 1.0
+
+    #     policy[state] = ont_hot_action
+
+    # env.reset()
+
+    # reward = 0
+    # running = True
+    # while running:
+    #     action = np.argmax(policy[env.state_id()])
+    #     env.step(action)
+    #     reward += env.score()
+    #     env.display()
+
+    #     if env.is_game_over():
+    #         env.reset()
+    #         print("Total reward: ", reward)
+    #         running = False
+
+
+def secret_env3():
+    # 65 536
+    env = SecretEnv3()
+    print(env.num_states())
+    start = time.time()
+    # policy, V, episode = value_iteration(env)
+    # policy, V, episode = policy_iteration(env)
+    # policy, Q = monte_carlo_with_exploring_start( env, nb_iter=100000, max_step=25000)
+    # policy, Q = monte_carlo_on_policy(env, nb_iter=10000, max_step=1000)
+    # policy, Q = monte_carlo_off_policy(env, nb_iter=10000, max_steps=1000)
     print("Time taken to train: ", time.time() - start)
 
-    if isinstance(policy, dict):
-        print("Optimal policy: \n")
-        pprint.pprint(policy)
-    else:
-        print("Optimal policy: \n", policy)
-        pass
+    # if isinstance(policy, dict):
+    #     print("Optimal policy: \n")
+    #     pprint.pprint(policy)
+    # else:
+    #     print("Optimal policy: \n", policy)
+
+    env.reset()
 
     reward = 0
     running = True
@@ -120,6 +282,7 @@ def secret_env0():
         action = np.argmax(policy[env.state_id()])
         env.step(action)
         reward += env.score()
+        env.display()
 
         if env.is_game_over():
             env.reset()
@@ -127,8 +290,10 @@ def secret_env0():
             running = False
 
 
-
 if __name__ == "__main__":
     # line_world()
-    grid_world()
+    # grid_world()
     # secret_env0()
+    secret_env1()
+    # secret_env2()
+    # secret_env3()
