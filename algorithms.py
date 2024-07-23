@@ -194,25 +194,7 @@ def monte_carlo_with_exploring_start(
         mean_q_value = total_q_value / num_state_action_pairs
         mean_Q_value.append(mean_q_value)
 
-    # plt.figure(figsize=(14, 6))
-
-    # plt.subplot(1, 2, 1)
-    # plt.plot(np.cumsum(cummulative_reward_avg) / (np.arange(nb_iter) + 1))
-    # plt.xlabel('Episode')
-    # plt.ylabel('Cumulative Average Reward')
-    # plt.title('Cumulative Average Reward per Episode')
-
-    # # Plot mean Q value
-    # plt.subplot(1, 2, 2)
-    # plt.plot(mean_Q_value)
-    # plt.xlabel('Episode')
-    # plt.ylabel('Mean Q Value')
-    # plt.title('Mean Q Value per Episode')
-
-    # plt.tight_layout()
-    # plt.show()
-
-    return pi, Q
+    return pi, Q, cummulative_reward_avg, mean_Q_value
 
 
 def monte_carlo_on_policy(
@@ -282,69 +264,71 @@ def monte_carlo_on_policy(
         mean_q_value = total_q_value / num_state_action_pairs
         mean_Q_value.append(mean_q_value)
 
-    plt.figure(figsize=(14, 6))
+    return pi, Q, cummulative_reward_avg, mean_Q_value
 
-    plt.subplot(1, 2, 1)
-    plt.plot(np.cumsum(cummulative_reward_avg) / (np.arange(nb_iter) + 1))
-    plt.xlabel('Episode')
-    plt.ylabel('Cumulative Average Reward')
-    plt.title('Cumulative Average Reward per Episode')
 
-    # Plot mean Q value
-    plt.subplot(1, 2, 2)
-    plt.plot(mean_Q_value)
-    plt.xlabel('Episode')
-    plt.ylabel('Mean Q Value')
-    plt.title('Mean Q Value per Episode')
+def create_behaviour_policy(nA):
+    def policy_fn(observation, available_actions):
+        A = np.zeros(nA, dtype=float)
+        if len(available_actions) != 0:
+            prob = 1.0 / len(available_actions)
+            for action in available_actions:
+                A[action] = prob
 
-    plt.tight_layout()
-    plt.show()
+        return A
+    return policy_fn
 
-    return pi, Q
 
+def create_target_policy(Q):
+    def policy_fn(state):
+        A = np.zeros_like(Q[state], dtype=float)
+        best_action = np.argmax(Q[state])
+        A[best_action] = 1.0
+        return A
+    return policy_fn
 
 def monte_carlo_off_policy(
     env,
     gamma: float = 0.999,
     nb_iter: int = 10000,
-    max_steps: int = 10,
+    max_step: int = 10,
     epsilon: float = 0.1
 ) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
 
     num_actions = env.num_actions()
 
-    Q: Dict[Tuple, List[float]] = defaultdict(
-        lambda: [0.0] * num_actions)
-    pi: Dict[Tuple, List[float]] = defaultdict(
-        lambda: [1.0 / num_actions] * num_actions)
-    C: Dict[Tuple, float] = defaultdict(float)
+    Q = defaultdict(lambda: np.zeros(num_actions))
+    C = defaultdict(lambda: np.zeros(num_actions))
 
-    for s in Q:
-        best_action = np.argmax(Q[s])
-        pi[s] = [1.0 if i == best_action else 0.0 for i in range(num_actions)]
+    behaviour_policy = create_behaviour_policy(num_actions)
+    pi = create_target_policy(Q)
+
+    cummulative_reward_avg = []
+    mean_Q_value = []
 
     for _ in tqdm(range(nb_iter)):
+        env.reset()
         trajectory = []
-        steps_count = 0
+        episode_reward = 0
+        step_count = 0
 
-        while not env.is_game_over() and steps_count < max_steps:
-            s = env.state_id()
+        s = env.state_id()
+
+        while not env.is_game_over() and step_count < max_step:
             aa = env.available_actions()
+            probs = behaviour_policy(s, aa)
+            action = np.random.choice(aa, p=[probs[a] for a in aa])
 
-            if np.random.rand() < epsilon:
-                a = np.random.choice(aa)
-            else:
-                a = np.argmax(pi[s][a] for a in aa)
+            env.step(action)
+            next_state = env.state_id()
+            r = env.score()
 
-            while env.is_forbidden(a):
-                a = np.random.choice(aa)
+            trajectory.append((s, action, r, aa))
+            step_count += 1
+            episode_reward += r
+            s = next_state
 
-            prev_score = env.score()
-            env.step(a)
-            r = env.score() - prev_score
-
-            trajectory.append((s, a, r, aa))
-            steps_count += 1
+        cummulative_reward_avg.append(episode_reward)
 
         G = 0
         W = 1
@@ -354,21 +338,24 @@ def monte_carlo_off_policy(
             s, a, r, aa = trajectory[t]
             G = gamma * G + r
 
-            C[(s, a)] += W
-            Q[s][a] += (W / C[(s, a)]) * (G - Q[s][a])
+            C[s][a] += W
+            Q[s][a] += (W/C[s][a]) * (G - Q[s][a])
 
-            aa = [a for a in aa if not env.is_forbidden(a)]
-            best_action = max(aa, key=lambda x: Q[s][x])
-            pi[s] = [1.0 if i ==
-                     best_action else 0.0 for i in range(num_actions)]
+            if a != np.argmax(pi(s)):
+                break
+            
+            behaviour_prob = behaviour_policy(s, aa)[a]
+            if behaviour_prob == 0:
+                break
 
-            if a != best_action:
-                continue
+            W = W * (pi(s)[action]/behaviour_prob)
 
-            W *= 1 / (epsilon / num_actions + (1 - epsilon)
-                      * (1 if a == best_action else 0))
+        total_q_value = sum(sum(q) for q in Q.values())
+        num_state_action_pairs = sum(len(q) for q in Q.values())
+        mean_q_value = total_q_value / num_state_action_pairs
+        mean_Q_value.append(mean_q_value)
 
-    return pi, Q
+    return pi, Q, cummulative_reward_avg, mean_Q_value
 
 
 def epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):

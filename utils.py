@@ -4,6 +4,26 @@ import matplotlib.pyplot as plt
 from algorithms import monte_carlo_with_exploring_start, monte_carlo_on_policy, monte_carlo_off_policy, sarsa, expected_sarsa, q_learning
 
 
+def execute_comparison_mc(env, nb_iter, max_step, gamma):
+    exec_time = {}
+
+    start = time.time()
+    _, _, cummu_avg_r_es, mean_q_value_es = monte_carlo_with_exploring_start(
+        env, nb_iter=nb_iter, max_step=max_step, gamma=gamma)
+    exec_time['exploring_start'] = time.time() - start
+
+    start = time.time()
+    _, _, cummu_avg_r_onp, mean_q_value_onp = monte_carlo_on_policy(
+        env, nb_iter=nb_iter, max_step=max_step, gamma=gamma)
+    exec_time['on_policy'] = time.time() - start
+
+    start = time.time()
+    _, _, cummu_avg_r_ofp, mean_q_value_ofp = monte_carlo_off_policy(
+        env, nb_iter=nb_iter, max_step=max_step, gamma=gamma)
+    exec_time['off_policy'] = time.time() - start
+
+    return cummu_avg_r_es, cummu_avg_r_onp, cummu_avg_r_ofp, exec_time
+
 def execute_comparison_td(env, nb_iter, alpha, gamma, epsilon, max_step):
     exec_time = {}
 
@@ -20,7 +40,7 @@ def execute_comparison_td(env, nb_iter, alpha, gamma, epsilon, max_step):
         env, nb_iter=nb_iter, alpha=alpha, max_step=max_step, gamma=gamma, epsilon=epsilon)
     exec_time['extected_sarsa'] = time.time() - start
 
-    return Q_sarsa, cumm_avg_sarsa, Q_q_l, cumm_avg_q_l, Q_expected_sarsa, cumm_avg_sarsa_e, exec_time
+    return cumm_avg_sarsa, cumm_avg_q_l, cumm_avg_sarsa_e, exec_time
 
 
 def visualize_monte_carlo(exploring_start, on_policy, off_policy, execution_time, env_name):
