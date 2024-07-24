@@ -156,21 +156,189 @@ def save_mc_es(policy, Q, policy_filename):
     policy_dict = convert_defaultdict_to_dict(policy)
     Q_dict = convert_defaultdict_to_dict(Q)
 
-    with open(OUTPUT_DIR+policy_filename, 'w') as policy_file:
-        json.dump(policy_dict, policy_file)
+    try:
+        with open(OUTPUT_DIR+policy_filename, 'w') as policy_file:
+            json.dump(policy_dict, policy_file)
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
 
-    with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'w') as Q_file:
-        json.dump(Q_dict, Q_file)
+    try:
+        with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'w') as Q_file:
+            json.dump(Q_dict, Q_file)
+    except IOError as e:
+        print(f"An error occurred while saving the Q function: {e}")
 
 
 def load_mc_es(policy_filename):
-    with open(OUTPUT_DIR+policy_filename, 'r') as policy_file:
-        policy_dict = json.load(policy_file)
+    try:
+        with open(OUTPUT_DIR+policy_filename, 'r') as policy_file:
+            policy_dict = json.load(policy_file)
+            print(f"Policy loaded successfully from {policy_filename}.")
+    except IOError as e:
+        print(f"An error occurred while loading the policy: {e}")
+        return None
 
-    with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'r') as Q_file:
-        Q_dict = json.load(Q_file)
+    try:
+        with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'r') as Q_file:
+            Q_dict = json.load(Q_file)
+            print(
+                f"Q function loaded successfully from {policy_filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while loading the Q function: {e}")
+        return None
 
     policy = defaultdict(lambda: [0.0, 1.0], policy_dict)
     Q = defaultdict(lambda: [0.0, 0.0], Q_dict)
+
+    return policy, Q
+
+
+def save_mc_onp(policy, Q, filename):
+    Q_dict = {
+        str(key): float(value)
+        for key, value in Q.items()
+    }
+    try:
+        with open(OUTPUT_DIR+filename, 'w') as file:
+            json.dump(policy, file)
+            print(f"Policy saved successfully to {filename}.")
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'w') as file:
+            json.dump(Q_dict, file)
+            print(
+                f"Q function saved successfully to {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while saving the Q function: {e}")
+
+
+def load_mc_onp(filename):
+    try:
+        with open(OUTPUT_DIR+filename, 'r') as file:
+            policy = json.load(file)
+            policy = {int(key): value for key,
+                      value in policy.items() if key != 'null'}
+            print(f"Policy loaded successfully from {filename}.")
+    except IOError as e:
+        print(f"An error occurred while loading the policy: {e}")
+        return None
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'r') as file:
+            Q = json.load(file)
+            print(
+                f"Q function loaded successfully from {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while loading the Q function: {e}")
+        return None
+
+    return policy, Q
+
+
+def save_mc_offp(policy, Q, filename):
+    Q_dict = {int(k): v.tolist() for k, v in Q.items()}
+    try:
+        with open(OUTPUT_DIR+filename, 'w') as file:
+            json.dump(policy, file)
+            print(f"Policy saved successfully to {filename}.")
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'w') as file:
+            json.dump(Q_dict, file)
+            print(
+                f"Q function saved successfully to {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while saving the Q function: {e}")
+
+
+def save_sarsa(policy, Q, filename):
+    Q_dict = {str(k): v for k, v in Q.items()}
+    policy = {int(k): v.tolist() for k, v in policy.items()}
+    try:
+        with open(OUTPUT_DIR+filename, 'w') as file:
+            json.dump(policy, file)
+            print(f"Policy saved successfully to {filename}.")
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'w') as file:
+            json.dump(Q_dict, file)
+            print(
+                f"Q function saved successfully to {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while saving the Q function: {e}")
+
+
+def load_sarsa(filename):
+    try:
+        with open(OUTPUT_DIR+filename, 'r') as file:
+            policy = json.load(file)
+            policy = {int(key): np.array(value)
+                      for key, value in policy.items()}
+            print(f"Policy loaded successfully from {filename}.")
+    except IOError as e:
+        print(f"An error occurred while loading the policy: {e}")
+        return None
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'r') as file:
+            Q = json.load(file)
+            Q = {tuple(map(int, k.split(','))): np.array(v)
+                 for k, v in Q.items()}
+            print(
+                f"Q function loaded successfully from {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while loading the Q function: {e}")
+        return None
+
+    return policy, Q
+
+
+def save_dyna_q(policy, Q, filename):
+    Q_list = Q.tolist()
+
+    policy = {int(k): v.tolist() for k, v in policy.items()}
+
+    try:
+        with open(OUTPUT_DIR+filename, 'w') as file:
+            json.dump(policy, file)
+            print(f"Policy saved successfully to {filename}.")
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'w') as file:
+            json.dump(Q_list, file)
+            print(
+                f"Q function saved successfully to {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while saving the Q function: {e}")
+
+
+def load_dyna_q(filename):
+    try:
+        with open(OUTPUT_DIR+filename, 'r') as file:
+            policy = json.load(file)
+            policy = {int(key): np.array(value)
+                      for key, value in policy.items()}
+            print(f"Policy loaded successfully from {filename}.")
+    except IOError as e:
+        print(f"An error occurred while loading the policy: {e}")
+        return None
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'Q'), 'r') as file:
+            Q = json.load(file)
+            Q = np.array(Q)
+            print(
+                f"Q function loaded successfully from {filename.replace('policy', 'Q')}.")
+    except IOError as e:
+        print(f"An error occurred while loading the Q function: {e}")
+        return None
 
     return policy, Q
