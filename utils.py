@@ -1,8 +1,11 @@
 import time
+import json
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import defaultdict
 from algorithms import monte_carlo_with_exploring_start, monte_carlo_on_policy, monte_carlo_off_policy, sarsa, expected_sarsa, q_learning
 
+OUTPUT_DIR = 'output/'
 
 def execute_comparison_mc(env, nb_iter, max_step, gamma):
     exec_time = {}
@@ -98,3 +101,76 @@ def visualize_temporal_difference(sarsa, expected_sarsa, q_learning, execution_t
         f'Comparison of TD learning methods on {env_name}', fontsize=16)
     plt.tight_layout()
     plt.show()
+
+
+def save_policy_dynamic(policy, value_function, filename):
+
+    policy = {key: int(value) for key, value in policy.items()}
+    value_function = value_function.tolist()
+
+    try:
+        with open(OUTPUT_DIR+filename, 'w') as file:
+            json.dump(policy, file)
+        print(f"Policy saved successfully to {filename}.")
+    except IOError as e:
+        print(f"An error occurred while saving the policy: {e}")
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'value'), 'w') as file:
+            json.dump(value_function, file)
+        print(
+            f"Value function saved successfully to {filename.replace('policy', 'value')}.")
+    except IOError as e:
+        print(f"An error occurred while saving the value function: {e}")
+
+
+def load_policy_dynamic(filename):
+    try:
+        with open(OUTPUT_DIR+filename, 'r') as file:
+            policy = json.load(file)
+            policy = {int(key): value for key, value in policy.items()}
+            print(f"Policy loaded successfully from {filename}.")
+    except IOError as e:
+        print(f"An error occurred while loading the policy: {e}")
+        return None
+
+    try:
+        with open(OUTPUT_DIR+filename.replace('policy', 'value'), 'r') as file:
+            value_function = json.load(file)
+            print(
+                f"Value function loaded successfully from {filename.replace('policy', 'value')}.")
+    except IOError as e:
+        print(f"An error occurred while loading the value function: {e}")
+        return None
+
+    return np.array(value_function), policy
+
+
+def convert_defaultdict_to_dict(d):
+    if isinstance(d, defaultdict):
+        d = {k: convert_defaultdict_to_dict(v) for k, v in d.items()}
+    return d
+
+
+def save_mc_es(policy, Q, policy_filename):
+    policy_dict = convert_defaultdict_to_dict(policy)
+    Q_dict = convert_defaultdict_to_dict(Q)
+
+    with open(OUTPUT_DIR+policy_filename, 'w') as policy_file:
+        json.dump(policy_dict, policy_file)
+
+    with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'w') as Q_file:
+        json.dump(Q_dict, Q_file)
+
+
+def load_mc_es(policy_filename):
+    with open(OUTPUT_DIR+policy_filename, 'r') as policy_file:
+        policy_dict = json.load(policy_file)
+
+    with open(OUTPUT_DIR+policy_filename.replace('policy', 'Q'), 'r') as Q_file:
+        Q_dict = json.load(Q_file)
+
+    policy = defaultdict(lambda: [0.0, 1.0], policy_dict)
+    Q = defaultdict(lambda: [0.0, 0.0], Q_dict)
+
+    return policy, Q

@@ -12,9 +12,9 @@ from algorithms import value_iteration, policy_iteration, monte_carlo_with_explo
 
 
 def line_world():
-    # line_world_vi()
-    line_world_pi()
-    # line_world_mc_es()
+    # line_world_vi(save=False, load=True, run=True)
+    # line_world_pi(save=True, load=False, run=False)
+    line_world_mc_es(save=False, load=True, run=True)
     # line_world_mc_onp()
     # line_world_mc_offp()
     # line_world_sarsa()
