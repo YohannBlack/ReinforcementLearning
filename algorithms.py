@@ -144,9 +144,8 @@ def monte_carlo_with_exploring_start(
                 allowed_action = [a for a in aa if not env.is_forbidden(a)]
                 a = np.random.choice(allowed_action)
 
-            prev_score = env.score()
             env.step(a)
-            r = env.score() - prev_score
+            r = env.score()
 
             trajectory.append((s, a, r, aa))
             steps_count += 1
@@ -256,7 +255,7 @@ def monte_carlo_on_policy(
     policy = {}
     for (s, a), q in Q.items():
         if s not in policy or Q[(s, policy[s])] < q:
-            policy[s] = a
+            policy[s] = int(a)
 
     if None in policy:
         policy[0] = policy[None]
@@ -267,10 +266,14 @@ def monte_carlo_on_policy(
 def get_random_policy(env):
     num_actions = env.num_actions()
     available_actions = env.available_actions()
-    state_policy = {}
-
     state_policy = {action: 0.0 for action in range(num_actions)}
-    action_prob = 1.0 / len(available_actions) if available_actions else 0.0
+
+    if hasattr(available_actions, 'size'):
+        num_available_actions = available_actions.size
+    else:
+        num_available_actions = len(available_actions)
+
+    action_prob = 1.0 / num_available_actions if num_available_actions > 0 else 0.0
 
     for action in available_actions:
         state_policy[action] = action_prob
@@ -285,7 +288,6 @@ def monte_carlo_off_policy(
     epsilon: float = 0.1
 ) -> Tuple[Dict[Tuple, List[float]], Dict[Tuple, List[float]]]:
 
-    num_state = env.num_states()
     num_actions = env.num_actions()
 
     Q = defaultdict(lambda: np.zeros(num_actions))
@@ -296,7 +298,7 @@ def monte_carlo_off_policy(
     cummulative_reward_avg = []
     mean_Q_value = []
 
-    for _ in tqdm(range(nb_iter)):
+    for it in tqdm(range(nb_iter)):
         env.reset()
         trajectory = []
         episode_reward = 0
@@ -319,7 +321,7 @@ def monte_carlo_off_policy(
 
             env.step(action)
             r = env.score()
-            trajectory.append((s, action, r, b[s]))
+            trajectory.append((s, action, r))
             episode_reward += r
             s = env.state_id()
             step_count += 1
@@ -329,59 +331,47 @@ def monte_carlo_off_policy(
 
         cummulative_reward_avg.append(episode_reward)
 
-        G = 0
-        W = 1
-
+        G = 0.0
+        W = 1.0
         # Loop for each step of the episode in reverse order
         for t in reversed(range(len(trajectory))):
-            s, a, r, aa = trajectory[t]
+            s, a, r = trajectory[t]
+            state_action_pair = (s, a)
+
             G = gamma * G + r
 
             C[s][a] += W
-            Q[s][a] += (W/C[s][a]) * (G - Q[s][a])
+            Q[s][a] += (W / C[s][a]) * (G - Q[s][a])
 
             if s not in target_policy:
                 target_policy[s] = {
                     a: 1/num_actions for a in range(num_actions)}
 
             best_action = np.argmax(Q[s])
-            for a in range(num_actions):
-                target_policy[s][a] = epsilon / num_actions + \
-                    (1 - epsilon) * (1 if a == best_action else 0)
+            for i in range(num_actions):
+                target_policy[s][i] = epsilon / num_actions + \
+                    (1 - epsilon) * (1 if i == best_action else 0)
 
-            W *= 1 / b[s][a]
+            W *= 1. / b[s][a]
 
         mean_Q_value.append(np.mean([Q[s][a]
                             for s in Q for a in range(num_actions)]))
-
     return target_policy, Q, cummulative_reward_avg, mean_Q_value
 
 
-def sarsa_epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):
-    A = np.zeros(n_action, dtype=float)
-    n_available_actions = len(available_actions)
-
-    if n_available_actions == 0:
+def make_epsilon_greedy_policy(Q, epsilon, nA):
+    def policy_fn(observation):
+        A = np.ones(nA, dtype=float) * epsilon / nA
+        best_action = np.argmax(Q[observation])
+        A[best_action] += (1.0 - epsilon)
         return A
-
-    equal_prob = epsilon / n_available_actions
-
-    for action in available_actions:
-        A[action] = equal_prob
-
-    best_action = available_actions[np.argmax(
-        [Q[state][a] for a in available_actions])]
-    A[best_action] += 1 - epsilon
-
-    assert np.isclose(np.sum(A), 1.0)
-
-    return A
+    return policy_fn
 
 
 def sarsa(env,
           nb_iter: int = 10000,
           epsilon: float = 0.1,
-          alpha: float = 0.5,
+          alpha: float = 0.2,
           gamma: float = 0.999,
           max_step: int = 1000
           ):
@@ -390,14 +380,18 @@ def sarsa(env,
     Q = defaultdict(lambda: [0.0] * num_actions)
     cummulative_reward_avg = []
 
+    policy = make_epsilon_greedy_policy(Q, epsilon, num_actions)
+
     for it in tqdm(range(nb_iter)):
         env.reset()
         state = env.state_id()
         aa = env.available_actions()
 
-        action_probs = sarsa_epsilon_greedy_policy(
-            Q, epsilon, state, aa, num_actions)
-        action = np.random.choice(aa, p=[action_probs[a] for a in aa])
+        action_probs = policy(state)
+
+        action_probs = [action_probs[a] for a in aa]
+        action_probs /= np.sum(action_probs)
+        action = np.random.choice(aa, p=action_probs)
 
         num_step = 0
         total_reward = 0.
@@ -407,10 +401,10 @@ def sarsa(env,
             reward = env.score()
 
             aa = env.available_actions()
-            next_action_probs = sarsa_epsilon_greedy_policy(
-                Q, epsilon, next_state, aa, num_actions)
-            next_action = np.random.choice(
-                aa, p=[next_action_probs[a] for a in aa])
+            next_action_probs = policy(next_state)
+            next_action_probs = [next_action_probs[a] for a in aa]
+            next_action_probs /= np.sum(next_action_probs)
+            next_action = np.random.choice(aa, p=next_action_probs)
 
             Q[state][action] += alpha * \
                 (reward + gamma * Q[next_state]
@@ -438,25 +432,38 @@ def expected_sarsa(env,
     Q = defaultdict(lambda: [0.0] * num_actions)
     cummulative_reward_avg = []
     
+    policy = make_epsilon_greedy_policy(Q, epsilon, num_actions)
+
     for it in tqdm(range(nb_iter)):
         env.reset()
         state = env.state_id()
         total_reward = 0.
         step = 0
 
-        aa = env.available_actions()
-        action_probs = sarsa_epsilon_greedy_policy(
-            Q, epsilon, state, aa, num_actions)
-        action = np.random.choice(aa, p=[action_probs[a] for a in aa])
-
         while not env.is_game_over() and step < max_step:
+            aa = env.available_actions()
+            action_probs = policy(state)
+            action_probs = [action_probs[a] for a in aa]
+            action_probs /= np.sum(action_probs)
+            action = np.random.choice(aa, p=action_probs)
+
             env.step(action)
             next_state = env.state_id()
             reward = env.score()
 
-            next_action_probs = epsilon_greedy_policy(
-                Q, epsilon, next_state, aa, num_actions)
-            expected_value = sum([next_action_probs[a] * Q[next_state][a] for a in aa])
+            if not env.is_game_over():
+                next_aa = env.available_actions()
+                next_action_probs = policy(next_state)
+                next_action_probs = [next_action_probs[a] for a in next_aa]
+                next_action_probs /= np.sum(next_action_probs)
+
+                valid_next_aa = [a for a in next_aa if a < len(Q[next_state])]
+
+                print(len(valid_next_aa), len(next_action_probs))
+                expected_value = sum(
+                    [next_action_probs[a] * Q[next_state][a] for a in valid_next_aa])
+            else:
+                expected_value = 0
 
             Q[state][action] += alpha * \
                 (reward + gamma * expected_value - Q[state][action])
@@ -480,6 +487,8 @@ def q_learning(env,
     num_actions = env.num_actions()
     Q = defaultdict(lambda: [0.0] * num_actions)
 
+    policy = make_epsilon_greedy_policy(Q, epsilon, num_actions)
+
     cummulative_reward_avg = []
 
     for it in tqdm(range(nb_iter)):
@@ -490,19 +499,23 @@ def q_learning(env,
 
         while not env.is_game_over() and step < max_step:
             aa = env.available_actions()
-            action_probs = epsilon_greedy_policy(
-                Q, epsilon, state, aa, num_actions)
-            action = np.random.choice(aa, p=[action_probs[a] for a in aa])
+            action_probs = policy(state)
+            action_probs = [action_probs[a] for a in aa]
+            action_probs /= np.sum(action_probs)
+            action = np.random.choice(aa, p=action_probs)
 
             env.step(action)
             next_state = env.state_id()
             reward = env.score()
 
-            Q[state][action] += alpha * \
-                (reward + gamma * np.max(Q[next_state][:]) - Q[state][action])
+            total_reward += reward
+
+            best_next_action = np.argmax(Q[next_state])
+            td_target = reward + gamma * Q[next_state][best_next_action]
+            td_delta = td_target - Q[state][action]
+            Q[state][action] += alpha * td_delta
 
             state = next_state
-            total_reward += reward
             step += 1
 
         cummulative_reward_avg.append(total_reward)
@@ -510,7 +523,7 @@ def q_learning(env,
     return Q, cummulative_reward_avg
 
 
-def dyna_q(env, nb_iter: int = 10000, alpha: float = 0.5, gamma: float = 0.999, epsilon: float = 0.1, max_step: int = 1000):
+def dyna_q(env, nb_iter=1000, alpha=0.5, gamma=0.999, epsilon=0.1, max_step=1000, planning_steps=10):
 
     num_actions = env.num_actions()
     num_state = env.num_states()
@@ -518,46 +531,46 @@ def dyna_q(env, nb_iter: int = 10000, alpha: float = 0.5, gamma: float = 0.999, 
     Q = np.zeros((num_state, num_actions))
     model = {}
 
+    policy = make_epsilon_greedy_policy(Q, epsilon, num_actions)
+
     cummulative_reward_avg = []
 
     for it in tqdm(range(nb_iter)):
-        env = env.from_random_state()
+        env.reset()
         state = env.state_id()
         total_reward = 0.
+        step = 0
 
         while not env.is_game_over():
             aa = env.available_actions()
-
-            if np.random.rand() < epsilon:
-                action = np.random.choice(aa)
-            else:
-                action = np.argmax(Q[state])
+            action_probs = policy(state)
+            action_probs = [action_probs[a] for a in aa]
+            action_probs /= np.sum(action_probs)
+            action = np.random.choice(aa, p=action_probs)
 
             env.step(action)
             reward = env.score()
             next_state = env.state_id()
 
-            print(
-                f"State: {state}, Action: {action}, Reward: {reward}, Next State: {next_state}")
-
             Q[state][action] += alpha * \
-                (reward + gamma * np.argmax(Q[next_state]) - Q[state, action])
+                (reward + gamma * np.max(Q[next_state]) - Q[state][action])
 
-            model[(state, action)] = (next_state, reward)
+            model[(state, action)] = (reward, next_state)
 
-            for _ in range(max_step):
+            for _ in range(planning_steps):
                 state, action = random.choice(list(model.keys()))
-                next_state, reward = model[(state, action)]
-                Q[state, action] += alpha * \
-                    (reward + gamma * np.max(Q[next_state]) - Q[state, action])
+                reward, next_state = model[(state, action)]
+                Q[state][action] += alpha * \
+                    (reward + gamma * np.max(Q[next_state]) - Q[state][action])
 
             state = next_state
             total_reward += reward
+            step += 1
 
         cummulative_reward_avg.append(total_reward)
 
+    print(Q)
     return Q, cummulative_reward_avg
-
 
 
 
