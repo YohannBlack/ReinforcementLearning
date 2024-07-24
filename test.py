@@ -73,7 +73,7 @@ def line_world_pi(save=False, load=False, run=False, filename="line_world_pi_pol
                     running = False
 
             action = policy[state]
-            env.step(env.actions[action])
+            env.step(action)
             env.render(screen)
             clock.tick(5)
 
@@ -109,7 +109,7 @@ def line_world_mc_es(save=False, load=False, run=False, filename="line_world_mc_
                 if event.type == pygame.QUIT:
                     running = False
             action = np.argmax(policy[state])
-            env.step(env.actions[action])
+            env.step(action)
 
             env.render(screen)
             clock.tick(5)
@@ -120,146 +120,454 @@ def line_world_mc_es(save=False, load=False, run=False, filename="line_world_mc_
         pygame.quit()
 
 
-def line_world_mc_onp():
+def line_world_mc_onp(save=False, load=False, run=False, filename="line_world_mc_onp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
     env = LineWorld(length=5)
 
-    start = time.time()
-    policy, Q, cummul_avg_onp, mean_Q_onp = monte_carlo_on_policy(
-        env, nb_iter=10000, max_step=100, GAMMA=0.999)
-    print("Time taken to train: ", time.time() - start)
+    if not load:
+        policy, Q, cummul_avg_onp = monte_carlo_on_policy(
+            env, nb_iter=10000, max_step=100, GAMMA=0.999)
+    else:
+        policy, Q = load_mc_onp(filename)
 
-    print(policy)
+    if save:
+        save_mc_onp(policy, Q, filename)
 
-    pygame.init()
-    screen = pygame.display.set_mode((env.length * 50, 50))
-    pygame.display.set_caption('LineWorld')
+    if run:
+        pygame.init()
+        screen = pygame.display.set_mode((env.length * 50, 50))
+        pygame.display.set_caption('LineWorld')
 
-    running = True
-    state = env.reset()
-    clock = pygame.time.Clock()
+        running = run
+        state = env.reset()
+        clock = pygame.time.Clock()
 
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-        action = policy[state]
-        env.step(action)
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            action = policy[state]
+            env.step(action)
 
-        env.render(screen)
-        clock.tick(5)
+            env.render(screen)
+            clock.tick(5)
 
-        if env.is_game_over():
-            state = env.reset()
+            if env.is_game_over():
+                state = env.reset()
 
 
-def line_world_mc_offp():
+def line_world_mc_offp(save=False, load=False, run=False, filename="line_world_mc_offp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
     env = LineWorld(length=5)
 
-    start = time.time()
-    policy, Q, cummul_avg_ofp, mean_Q_ofp = monte_carlo_off_policy(
-        env, nb_iter=10000, max_step=100, GAMMA=0.999)
-    print("Time taken to train: ", time.time() - start)
+    if not load:
+        policy, Q, cummul_avg_ofp, mean_Q_ofp = monte_carlo_off_policy(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+        print(policy)
+        print(Q)
 
-    print(policy)
+    if save:
+        save_mc_offp(policy, Q, filename)
 
-    pygame.init()
-    screen = pygame.display.set_mode((env.length * 50, 50))
-    pygame.display.set_caption('LineWorld')
+    if run:
+        pygame.init()
+        screen = pygame.display.set_mode((env.length * 50, 50))
+        pygame.display.set_caption('LineWorld')
 
-    running = True
-    state = env.reset()
-    clock = pygame.time.Clock()
+        running = True
+        state = env.reset()
+        clock = pygame.time.Clock()
 
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-        action = max(policy[state], key=policy[state].get)
-        env.step(env.actions[action])
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            action = max(policy[env.state_id()],
+                         key=policy[env.state_id()].get)
+            env.step(action)
 
-        env.render(screen)
-        clock.tick(5)
+            env.render(screen)
+            clock.tick(5)
 
-        if env.is_game_over():
-            state = env.reset()
+            if env.is_game_over():
+                state = env.reset()
 
-    pygame.quit()
+        pygame.quit()
 
 
-def line_world_sarsa():
+def line_world_sarsa(save=False, load=False, run=False, filename="line_world_sarsa_policy.json", nb_iter=10000, max_step=100, gamma=0.999):
     env = LineWorld(length=5)
 
-    start = time.time()
-    Q, cummul_avg_sarsa = sarsa(env, nb_iter=10000, max_step=100, gamma=0.999)
-    print("Time taken to train: ", time.time() - start)
+    if not load:
+        Q, cummul_avg_sarsa = sarsa(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
 
-    print(Q)
-    policy = {}
-    for state, actions in Q.items():
-        best_action = np.argmax(actions)
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
 
-        ont_hot_action = np.zeros(env.num_actions())
-        ont_hot_action[best_action] = 1.0
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
 
-        policy[state] = ont_hot_action
+    if save:
+        save_sarsa(policy, Q, filename)
 
-    print(policy)
+    if run:
+        pygame.init()
+        screen = pygame.display.set_mode((env.length * 50, 50))
+        pygame.display.set_caption('LineWorld')
 
-    pygame.init()
-    screen = pygame.display.set_mode((env.length * 50, 50))
-    pygame.display.set_caption('LineWorld')
+        env.reset()
+        running = True
+        clock = pygame.time.Clock()
 
-    env.reset()
-    running = True
-    clock = pygame.time.Clock()
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            env.render(screen)
+            clock.tick(5)
 
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-        action = np.argmax(policy[env.state_id()])
-        env.step(action)
-        env.render(screen)
-        clock.tick(5)
-
-        if env.is_game_over():
-            state = env.reset()
+            if env.is_game_over():
+                state = env.reset()
 
 
-def secret_env_0_sarsa():
+def line_world_q_learning(save=False, load=False, run=False, filename="line_world_q_learning_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = LineWorld(length=5)
+
+    if not load:
+        Q, cummul_avg_q_l = q_learning(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        pygame.init()
+        screen = pygame.display.set_mode((env.length * 50, 50))
+        pygame.display.set_caption('LineWorld')
+
+        env.reset()
+        running = True
+        clock = pygame.time.Clock()
+
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            env.render(screen)
+            clock.tick(5)
+
+            if env.is_game_over():
+                state = env.reset()
+
+
+def line_world_dyna_q(save=False, load=False, run=False, filename="line_world_dyna_q_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.1, n=10):
+    env = LineWorld(length=5)
+
+    if not load:
+        Q, cummul_avg_q_l = dyna_q(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha, planning_steps=n)
+        policy = {}
+        for state in range(len(Q)):
+            best_action = np.argmax(Q[state])
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+        print(policy)
+    else:
+        policy, Q = load_dyna_q(filename)
+
+    if save:
+        save_dyna_q(policy, Q, filename)
+
+    if run:
+        pygame.init()
+        screen = pygame.display.set_mode((env.length * 50, 50))
+        pygame.display.set_caption('LineWorld')
+
+        env.reset()
+        running = True
+        clock = pygame.time.Clock()
+
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            env.render(screen)
+            clock.tick(5)
+
+            if env.is_game_over():
+                state = env.reset()
+
+
+def secret_env_0_mc_es(save=False, load=False, run=False, filename="secret_env0_mc_es_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
     env = SecretEnv0()
 
-    start = time.time()
-    Q, cummul_avg_sarsa = sarsa(env, nb_iter=10000, max_step=100, gamma=0.999)
-    print("Time taken to train: ", time.time() - start)
+    if not load:
+        policy, Q, cummul_avg_es, mean_Q_es = monte_carlo_with_exploring_start(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_es(filename)
 
-    print(Q)
+    if save:
+        save_mc_es(policy, Q, filename)
 
-    policy = {}
-    for state, actions in Q.items():
-        best_action = np.argmax(actions)
-
-        ont_hot_action = np.zeros(env.num_actions())
-        ont_hot_action[best_action] = 1.0
-
-        policy[state] = ont_hot_action
-
-    print(policy)
-
-    reward = 0
-    i = 0
     env.reset()
-    running = True
 
-    while running:
-        action = np.argmax(policy[env.state_id()])
-        env.step(action)
-        reward += env.score()
-        i += 1
-        env.display()
+    if run:
+        reward = 0
+        i = 0
+        running = True
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
 
-        if env.is_game_over():
-            running = False
-            print("Total reward for secret env 0: ", reward)
-            print("Number of steps: ", i)
-            print("Number of state visited: ", len(policy.keys()))
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_mc_onp(save=False, load=False, run=False, filename="secret_env0_mc_onp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv0()
+
+    if not load:
+        policy, Q, cummul_avg_onp = monte_carlo_on_policy(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_onp(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = policy[env.state_id()]
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_mc_offp(save=False, load=False, run=False, filename="secret_env0_mc_offp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv0()
+
+    if not load:
+        policy, Q, cummul_avg_ofp, mean_Q_ofp = monte_carlo_off_policy(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_offp(policy, Q, filename)
+
+    if run:
+        env.reset()
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_sarsa(save=False, load=False, run=False, filename="secret_env0_sarsa_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv0()
+
+    if not load:
+        Q, cummul_avg_sarsa = sarsa(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_q_learning(save=False, load=False, run=False, filename="secret_env_0_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv0()
+
+    if not load:
+        Q, cummul_avg_q_l = q_learning(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_expected_sarsa(save=False, load=False, run=False, filename="secret_env_0_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv0()
+
+    if not load:
+        Q, cummul_avg_q_l = expected_sarsa(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_0_dyna_q(save=False, load=False, run=False, filename="secret_env_0_dyna_q_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.1, n=10):
+    env = SecretEnv0()
+
+    if not load:
+        Q, cummul_avg_q_l = dyna_q(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha, planning_steps=n)
+        policy = {}
+        for state in range(len(Q)):
+            best_action = np.argmax(Q[state])
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_dyna_q(filename)
+
+    if save:
+        save_dyna_q(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 0: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
