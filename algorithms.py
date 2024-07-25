@@ -117,7 +117,6 @@ def monte_carlo_with_exploring_start(
     Returns: Dict[Tuple, List[float]] = defaultdict(list)
 
     cummulative_reward_avg = []
-    mean_Q_value = []
 
     for it in tqdm(range(nb_iter)):
         env = env.from_random_state()
@@ -176,12 +175,7 @@ def monte_carlo_with_exploring_start(
                     if action not in aa:
                         pi[s][action] = 0.0
 
-        total_q_value = sum(sum(q) for q in Q.values())
-        num_state_action_pairs = sum(len(q) for q in Q.values())
-        mean_q_value = total_q_value / num_state_action_pairs
-        mean_Q_value.append(mean_q_value)
-
-    return pi, Q, cummulative_reward_avg, mean_Q_value
+    return pi, Q, cummulative_reward_avg
 
 
 def epsilon_greedy_policy(Q, epsilon, state, available_actions, n_action):
