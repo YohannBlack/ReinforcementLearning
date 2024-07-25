@@ -1,7 +1,8 @@
 import pygame
 import numpy as np 
 from abc import ABC, abstractmethod
-
+import random
+from typing import List
 
 class Environment(ABC):
     @abstractmethod
@@ -382,3 +383,91 @@ class TwoRoundRockPaperScissors(Environment):
              (agent_action == 2 and opponent_action == 1):
             return self.rewards[2]
         return self.rewards[0]
+
+
+import random
+from typing import List
+
+
+class MontyHall(Environment):
+    def __init__(self):
+        self.doors = ['A', 'B', 'C']
+        self.reset()
+
+    def num_states(self) -> int:
+        return len(self.doors) ** 3  # Exemple simplifié
+
+    def num_actions(self) -> int:
+        return 5  # 3 pour choisir une porte, 2 pour switch ou stay
+
+    def num_rewards(self) -> int:
+        return 2  # 2 types de récompenses : gagner ou perdre
+
+    def reward(self, i: int) -> float:
+        return 1.0 if i == 1 else 0.0
+
+    def p(self, s: int, a: int, s_p: int, r_index: int) -> float:
+        # Probabilité de transition simplifiée
+        return 1.0 if s_p == self.state_id() else 0.0
+
+    def reset(self):
+        self.car = random.choice(self.doors)
+        self.choice = None
+        self.opened_door = None
+        self.game_over = False
+        return self.state_id()
+
+    def state_id(self) -> int:
+        return hash((self.car, self.choice, self.opened_door))
+
+    def available_actions(self) -> List[int]:
+        if self.choice is None:
+            return list(range(3))  # 0: A, 1: B, 2: C
+        elif self.opened_door is None:
+            return [3, 4]  # 3: stay, 4: switch
+        else:
+            return []
+
+    def is_game_over(self) -> bool:
+        return self.game_over
+
+    def step(self, action: int):
+        if action < 3:
+            self.choice = self.doors[action]
+            self.opened_door = self.get_opened_door()
+        elif action == 3:  # stay
+            self.game_over = True
+        elif action == 4:  # switch
+            self.choice = [door for door in self.doors if door != self.choice and door != self.opened_door][0]
+            self.game_over = True
+        else:
+            raise ValueError("Invalid action")
+
+        reward = self.score()
+        return self.state_id(), reward
+
+    def score(self) -> float:
+        return 1.0 if self.choice == self.car else 0.0
+
+    def get_opened_door(self):
+        return random.choice([door for door in self.doors if door != self.car and door != self.choice])
+
+    def display(self):
+        # Affichage simplifié pour le terminal
+        print(f"Doors: {self.doors}")
+        print(f"Car: {self.car}, Choice: {self.choice}, Opened: {self.opened_door}")
+
+    def is_forbidden(self, action: int) -> int:
+        # Aucune action n'est interdite dans ce contexte
+        return False
+
+    @staticmethod
+    def from_random_state() -> 'MontyHall':
+        env = MontyHall()
+        env.car = random.choice(env.doors)
+        env.choice = random.choice(env.doors)
+        if env.choice != env.car:
+            env.opened_door = random.choice([door for door in env.doors if door != env.car and door != env.choice])
+        else:
+            env.opened_door = random.choice([door for door in env.doors if door != env.car])
+        return env
