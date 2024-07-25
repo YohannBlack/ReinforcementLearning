@@ -453,9 +453,15 @@ class MontyHall(Environment):
         return random.choice([door for door in self.doors if door != self.car and door != self.choice])
 
     def display(self):
-        # Affichage simplifié pour le terminal
-        print(f"Doors: {self.doors}")
-        print(f"Car: {self.car}, Choice: {self.choice}, Opened: {self.opened_door}")
+        state = f"Car: {self.car}, Choice: {self.choice}, Opened: {self.opened_door}"
+        print(state)
+        # Visualisation textuelle simple
+        door_display = ['[ ]' for _ in self.doors]
+        if self.choice is not None:
+            door_display[self.doors.index(self.choice)] = '[X]'
+        if self.opened_door is not None:
+            door_display[self.doors.index(self.opened_door)] = '[O]'
+        print(" ".join(door_display))
 
     def is_forbidden(self, action: int) -> int:
         # Aucune action n'est interdite dans ce contexte
