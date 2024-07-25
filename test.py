@@ -851,6 +851,187 @@ def visualize_td_secret_env_2(nb_iter=100000, max_step=10000, gamma=0.999, alpha
     visualize_temporal_difference(sarsa, q_l, exec_time, "env2")
 
 
+def secret_env_2_mc_es(save=False, load=False, run=False, display=True, filename="secret_env2_mc_es_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv2()
+
+    if not load:
+        policy, Q, cummul_avg_es = monte_carlo_with_exploring_start(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_es(filename)
+
+    if save:
+        save_mc_es(policy, Q, filename)
+
+    env.reset()
+
+    if run:
+        reward = 0
+        i = 0
+        running = True
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 2: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_2_mc_onp(save=False, load=False, run=False, display=True, filename="secret_env2_mc_onp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv2()
+
+    if not load:
+        policy, Q, cummul_avg_onp = monte_carlo_on_policy(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_onp(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = policy[env.state_id()]
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 2: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_2_mc_offp(save=False, load=False, run=False, display=False, filename="secret_env2_mc_offp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv2()
+
+    if not load:
+        policy, Q, cummul_avg_ofp, mean_Q_ofp = monte_carlo_off_policy(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_offp(policy, Q, filename)
+
+    if run:
+        env.reset()
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 2: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_2_sarsa(save=False, load=False, run=False, display=False, filename="secret_env2_sarsa_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv2()
+
+    if not load:
+        Q, cummul_avg_sarsa = sarsa(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 2: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_2_q_learning(save=False, load=False, run=False, display=False, filename="secret_env_2_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+
+    env = SecretEnv2()
+
+    if not load:
+        Q, cummul_avg_q_l = q_learning(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 2: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+
+
 def visualize_mc_secret_env_3(nb_iter=100000, max_step=10000, gamma=0.999):
     env = SecretEnv3()
 
@@ -865,3 +1046,181 @@ def visualize_td_secret_env_3(nb_iter=100000, max_step=10000, gamma=0.999, alpha
     sarsa, q_l, exec_time = execute_comparison_td(
         env, nb_iter=nb_iter, alpha=alpha, gamma=gamma, epsilon=epsilon, max_step=max_step)
     visualize_temporal_difference(sarsa, q_l, exec_time, "env3")
+
+
+def secret_env_3_mc_es(save=False, load=False, run=False, display=True, filename="secret_env3_mc_es_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv3()
+
+    if not load:
+        policy, Q, cummul_avg_es = monte_carlo_with_exploring_start(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_es(filename)
+
+    if save:
+        save_mc_es(policy, Q, filename)
+
+    env.reset()
+
+    if run:
+        reward = 0
+        i = 0
+        running = True
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 3: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_3_mc_onp(save=False, load=False, run=False, display=True, filename="secret_env3_mc_onp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv3()
+
+    if not load:
+        policy, Q, cummul_avg_onp = monte_carlo_on_policy(
+            env, nb_iter=nb_iter, max_step=max_step, GAMMA=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_onp(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = policy[env.state_id()]
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 3: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_3_mc_offp(save=False, load=False, run=False, display=False, filename="secret_env3_mc_offp_policy.json", nb_iter=10000, max_step=100, GAMMA=0.999):
+    env = SecretEnv3()
+
+    if not load:
+        policy, Q, cummul_avg_ofp, mean_Q_ofp = monte_carlo_off_policy(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=GAMMA)
+    else:
+        policy, Q = load_mc_onp(filename)
+
+    if save:
+        save_mc_offp(policy, Q, filename)
+
+    if run:
+        env.reset()
+        reward = 0
+        i = 0
+        running = run
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 3: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_3_sarsa(save=False, load=False, run=False, display=False, filename="secret_env3_sarsa_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv3()
+
+    if not load:
+        Q, cummul_avg_sarsa = sarsa(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 3: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))
+
+
+def secret_env_3_q_learning(save=False, load=False, run=False, display=False, filename="secret_env_3_policy.json", nb_iter=10000, max_step=100, gamma=0.999, epsilon=0.1, alpha=0.5):
+    env = SecretEnv3()
+
+    if not load:
+        Q, cummul_avg_q_l = q_learning(
+            env, nb_iter=nb_iter, max_step=max_step, gamma=gamma, epsilon=epsilon, alpha=alpha)
+        policy = {}
+        for state, actions in Q.items():
+            best_action = np.argmax(actions)
+
+            ont_hot_action = np.zeros(env.num_actions())
+            ont_hot_action[best_action] = 1.0
+
+            policy[state] = ont_hot_action
+    else:
+        policy, Q = load_sarsa(filename)
+
+    if save:
+        save_sarsa(policy, Q, filename)
+
+    if run:
+        reward = 0
+        i = 0
+        env.reset()
+        running = True
+
+        while running:
+            action = np.argmax(policy[env.state_id()])
+            env.step(action)
+            reward += env.score()
+            i += 1
+            if display:
+                env.display()
+
+            if env.is_game_over():
+                running = False
+                print("Total reward for secret env 3: ", reward)
+                print("Number of steps: ", i)
+                print("Number of state visited: ", len(policy.keys()))

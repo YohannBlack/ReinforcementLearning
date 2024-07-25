@@ -95,9 +95,18 @@ def secret_env1():
 def secret_env2():
     # 2 097 152
     env = SecretEnv2()
-    env.reset()
 
-    start = time.time()
+    secret_env_2_mc_es(save=False, load=True, run=True, display=False,
+                       nb_iter=50000, max_step=10000)
+    secret_env_2_mc_onp(save=False, load=True, run=True, display=False,
+                        nb_iter=10000, max_step=100000, GAMMA=0.1)
+    # secret_env_2_mc_offp(save=False, load=True, run=True, display=False,
+    #                      nb_iter=50000, max_step=10000)
+
+    # secret_env_2_sarsa(save=False, load=True, run=True, display=False,
+    #                    nb_iter=50000, max_step=10000)
+    secret_env_2_q_learning(save=False, load=True, run=True, display=False,
+                            nb_iter=50000, max_step=10000)
 
 
 
@@ -105,14 +114,26 @@ def secret_env3():
     # 65 536
     env = SecretEnv3()
 
-    visualize_mc_secret_env_3(nb_iter=50000, max_step=10000)
-    visualize_td_secret_env_3(nb_iter=50000, max_step=10000)
+    # visualize_mc_secret_env_3(nb_iter=50000, max_step=10000)
+    # visualize_td_secret_env_3(nb_iter=50000, max_step=10000)
+
+    # secret_env_3_mc_es(save=True, load=False, run=True, display=False,
+    #                    nb_iter=50000, max_step=10000)
+    # secret_env_3_mc_onp(save=False, load=True, run=True, display=False,
+    #                     nb_iter=10000, max_step=100000, GAMMA=0.1)
+    # secret_env_3_mc_offp(save=True, load=False, run=True, display=False,
+    #                      nb_iter=50000, max_step=10000)
+
+    # secret_env_3_sarsa(save=True, load=False, run=True, display=False,
+    #                    nb_iter=50000, max_step=10000)
+    # secret_env_3_q_learning(save=True, load=False, run=True, display=False,
+    #                         nb_iter=50000, max_step=10000)
 
 
 if __name__ == "__main__":
     # line_world()
     # grid_world()
     # secret_env0()
-    secret_env1()
-    # secret_env2()
+    # secret_env1()
+    secret_env2()
     # secret_env3()
